@@ -1683,7 +1683,7 @@ pcall(function()
         end)
     end
 
-    ,_G.InitModMenuTab = function()
+    _G.InitModMenuTab = function()
         local LocUtil = _G.LocUtil
         if not LocUtil and package.loaded["client.common.LocUtil"] then
             LocUtil = require("client.common.LocUtil")
