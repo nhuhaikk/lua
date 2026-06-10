@@ -1378,11 +1378,8 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
           -- Use mod slider value if enabled, otherwise use game's setting
           local rawSliderValue = _G.Mod_iPadViewDistance or (SettingSubsystem:GetUserSettings_Int("TpViewValue") or 90)
           local targetTPP = rawSliderValue
-          if rawSliderValue > 80 and rawSliderValue <= 90 then
-              targetTPP = 80 + (rawSliderValue - 80) * 6.0
-          elseif rawSliderValue > 90 then
-              targetTPP = rawSliderValue
-          end
+          if rawSliderValue < 80 then rawSliderValue = 80 end
+          if rawSliderValue > 140 then rawSliderValue = 140 end
           if _G.Mod_iPadView_Enabled ~= false then
             local uTPPCam = char.ThirdPersonCameraComponent
             if isValid(uTPPCam) and not char.bIsWeaponAiming then
