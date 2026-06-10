@@ -1683,7 +1683,7 @@ pcall(function()
         end)
     end
 
-    _G.InitModMenuTab = function()
+    ,_G.InitModMenuTab = function()
         local LocUtil = _G.LocUtil
         if not LocUtil and package.loaded["client.common.LocUtil"] then
             LocUtil = require("client.common.LocUtil")
@@ -1706,7 +1706,21 @@ pcall(function()
         if not SettingPageDefine.ModMenu then
             local AliasMap = require("client.slua.umg.NewSetting.Item.AliasMap")
             
-            local ModMenuStack = {
+            local ModMenuEsp = {
+                { UI = AliasMap.Title, Text = "SETTING" },
+                {
+                    Key = "ESP",
+                    UI = AliasMap.Switcher,
+                    Text = "WALL ESP",
+                    GetFunc = function() return _G.Mod_ESP_Enabled or false end,
+                    SetFunc = function(_, value)
+                        _G.Mod_ESP_Enabled = value
+                        print("[MOD] WALL ESP: " .. (value and "ON ✓" or "OFF ✗"))
+                        return true
+                    end
+                }
+            }
+            local ModMenuAim = {
                 { UI = AliasMap.Title, Text = "SETTING" },
                 {
                     Key = "ModMenu_Aimbot",
@@ -1734,18 +1748,10 @@ pcall(function()
                         print("[MOD] Aimbot Strength: " .. _G.Mod_AimbotStrength .. "%")
                         return true
                     end
-                },
-                {
-                    Key = "ESP",
-                    UI = AliasMap.Switcher,
-                    Text = "WALL ESP",
-                    GetFunc = function() return _G.Mod_ESP_Enabled or false end,
-                    SetFunc = function(_, value)
-                        _G.Mod_ESP_Enabled = value
-                        print("[MOD] WALL ESP: " .. (value and "ON ✓" or "OFF ✗"))
-                        return true
-                    end
-                },
+                }
+            }
+            local ModMenuOther = {
+                { UI = AliasMap.Title, Text = "SETTING" },
                 {
                     Key = "FPS165",
                     UI = AliasMap.Switcher,
@@ -1812,8 +1818,18 @@ pcall(function()
                 Category = {
                     {
                         Key = "ModMenu_Main",
-                        loc = "FEATURES", 
-                        Stack = ModMenuStack
+                        loc = "Esp", 
+                        Stack = ModMenuEsp
+                    },
+                    {
+                        Key = "ModMenu_Aim",
+                        loc = "Aim", 
+                        Stack = ModMenuAim
+                    },
+                    {
+                        Key = "ModMenu_Other",
+                        loc = "Other", 
+                        Stack = ModMenuOther
                     }
                 }
             }
