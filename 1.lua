@@ -3138,7 +3138,7 @@ pcall(function()
             
             SettingPageDefine.ModMenu = {
                 Key = "ModMenu",
-                loc = "MOD MENU",
+                loc = "NHU HAI MOD",
                 UIKey = "Setting_Page_Privacy", 
                 Category = {
                     {
