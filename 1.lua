@@ -1795,7 +1795,8 @@ pcall(function()
                     UI = AliasMap.Slider,
                     Text = "View Distance (80-140)",
                     GetFunc = function() 
-                        return ((_G.Mod_iPadViewDistance or 90) - 80) / 60
+                        local currentVal = _G.Mod_iPadViewDistance or 90 -- Mặc định là 90 nếu chưa set
+                        return (currentVal - 80) / 60
                     end,
                     SetFunc = function(_, value)
                         _G.Mod_iPadViewDistance = math.floor(80 + (value * 60))
@@ -1804,7 +1805,6 @@ pcall(function()
                     end
                 }
             }
-            
             SettingPageDefine.ModMenu = {
                 Key = "ModMenu",
                 loc = "NHU HAI MOD",
