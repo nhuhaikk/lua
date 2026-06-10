@@ -1706,21 +1706,7 @@ pcall(function()
         if not SettingPageDefine.ModMenu then
             local AliasMap = require("client.slua.umg.NewSetting.Item.AliasMap")
             
-            local ModMenuEsp = {
-                { UI = AliasMap.Title, Text = "SETTING" },
-                {
-                    Key = "ESP",
-                    UI = AliasMap.Switcher,
-                    Text = "WALL ESP",
-                    GetFunc = function() return _G.Mod_ESP_Enabled or false end,
-                    SetFunc = function(_, value)
-                        _G.Mod_ESP_Enabled = value
-                        print("[MOD] WALL ESP: " .. (value and "ON ✓" or "OFF ✗"))
-                        return true
-                    end
-                }
-            }
-            local ModMenuAim = {
+            local ModMenuStack = {
                 { UI = AliasMap.Title, Text = "SETTING" },
                 {
                     Key = "ModMenu_Aimbot",
@@ -1748,10 +1734,18 @@ pcall(function()
                         print("[MOD] Aimbot Strength: " .. _G.Mod_AimbotStrength .. "%")
                         return true
                     end
-                }
-            }
-            local ModMenuOther = {
-                { UI = AliasMap.Title, Text = "SETTING" },
+                },
+                {
+                    Key = "ESP",
+                    UI = AliasMap.Switcher,
+                    Text = "WALL ESP",
+                    GetFunc = function() return _G.Mod_ESP_Enabled or false end,
+                    SetFunc = function(_, value)
+                        _G.Mod_ESP_Enabled = value
+                        print("[MOD] WALL ESP: " .. (value and "ON ✓" or "OFF ✗"))
+                        return true
+                    end
+                },
                 {
                     Key = "FPS165",
                     UI = AliasMap.Switcher,
@@ -1818,18 +1812,8 @@ pcall(function()
                 Category = {
                     {
                         Key = "ModMenu_Main",
-                        loc = "Esp", 
-                        Stack = ModMenuEsp
-                    },
-                    {
-                        Key = "ModMenu_Aim",
-                        loc = "Aim", 
-                        Stack = ModMenuAim
-                    },
-                    {
-                        Key = "ModMenu_Other",
-                        loc = "Other", 
-                        Stack = ModMenuOther
+                        loc = "FEATURES", 
+                        Stack = ModMenuStack
                     }
                 }
             }
