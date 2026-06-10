@@ -1378,8 +1378,11 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
           -- Use mod slider value if enabled, otherwise use game's setting
           local rawSliderValue = _G.Mod_iPadViewDistance or (SettingSubsystem:GetUserSettings_Int("TpViewValue") or 90)
           local targetTPP = rawSliderValue
-          if rawSliderValue < 80 then rawSliderValue = 80 end
-          if rawSliderValue > 140 then rawSliderValue = 140 end
+          if rawSliderValue > 80 and rawSliderValue <= 90 then
+              targetTPP = 80 + (rawSliderValue - 80) * 6.0
+          elseif rawSliderValue > 90 then
+              targetTPP = rawSliderValue
+          end
           if _G.Mod_iPadView_Enabled ~= false then
             local uTPPCam = char.ThirdPersonCameraComponent
             if isValid(uTPPCam) and not char.bIsWeaponAiming then
@@ -1703,7 +1706,21 @@ pcall(function()
         if not SettingPageDefine.ModMenu then
             local AliasMap = require("client.slua.umg.NewSetting.Item.AliasMap")
             
-            local ModMenuStack = {
+            local ModMenuEsp = {
+                { UI = AliasMap.Title, Text = "SETTING" },
+                {
+                    Key = "ESP",
+                    UI = AliasMap.Switcher,
+                    Text = "WALL ESP",
+                    GetFunc = function() return _G.Mod_ESP_Enabled or false end,
+                    SetFunc = function(_, value)
+                        _G.Mod_ESP_Enabled = value
+                        print("[MOD] WALL ESP: " .. (value and "ON ✓" or "OFF ✗"))
+                        return true
+                    end
+                }
+            }
+            local ModMenuAim = {
                 { UI = AliasMap.Title, Text = "SETTING" },
                 {
                     Key = "ModMenu_Aimbot",
@@ -1731,18 +1748,10 @@ pcall(function()
                         print("[MOD] Aimbot Strength: " .. _G.Mod_AimbotStrength .. "%")
                         return true
                     end
-                },
-                {
-                    Key = "ESP",
-                    UI = AliasMap.Switcher,
-                    Text = "WALL ESP",
-                    GetFunc = function() return _G.Mod_ESP_Enabled or false end,
-                    SetFunc = function(_, value)
-                        _G.Mod_ESP_Enabled = value
-                        print("[MOD] WALL ESP: " .. (value and "ON ✓" or "OFF ✗"))
-                        return true
-                    end
-                },
+                }
+            }
+            local ModMenuOther = {
+                { UI = AliasMap.Title, Text = "SETTING" },
                 {
                     Key = "FPS165",
                     UI = AliasMap.Switcher,
@@ -1809,8 +1818,18 @@ pcall(function()
                 Category = {
                     {
                         Key = "ModMenu_Main",
-                        loc = "FEATURES", 
-                        Stack = ModMenuStack
+                        loc = "Esp", 
+                        Stack = ModMenuEsp
+                    },
+                    {
+                        Key = "ModMenu_Aim",
+                        loc = "Aim", 
+                        Stack = ModMenuAim
+                    },
+                    {
+                        Key = "ModMenu_Other",
+                        loc = "Other", 
+                        Stack = ModMenuOther
                     }
                 }
             }
