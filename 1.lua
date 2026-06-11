@@ -36,6 +36,7 @@ if _G.Mod_iPadView_Enabled == nil then _G.Mod_iPadView_Enabled = false end
 
 -- Slider values for fine-tuning
 if _G.Mod_AimbotStrength == nil then _G.Mod_AimbotStrength = 50 end -- 0-100 slider
+if _G.Mod_Aimbot_Fov == nil then _G.Mod_Aimbot_Fov = 50 end -- 0-100 slider
 if _G.Mod_iPadViewDistance == nil then _G.Mod_iPadViewDistance = 90 end -- 80-140 slider
 
 local require = require
@@ -1510,85 +1511,49 @@ local function ApplyHardAimbot()
     if not _G.CheatsEnabled then return end
     if _G.Mod_Aimbot_Enabled == false then return end
     pcall(function()
-        local pc = slua_GameFrontendHUD:GetPlayerController()
-        if not isValid(pc) then return end
-
-        local char = pc:GetPlayerCharacterSafety()
-        if not isValid(char) then return end
-
-        local wm = char.WeaponManagerComponent
-        if not isValid(wm) then return end
-
-        local weapon = wm.CurrentWeaponReplicated
-        if not isValid(weapon) then return end
-
-        local entity = weapon.ShootWeaponEntityComp
-        if not isValid(entity) then return end
-
-        -- Use slider value to adjust aimbot strength (0-100)
-        local strengthMul = (_G.Mod_AimbotStrength or 50) / 100
+        local pc = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
+        if not slua.isValid(pc) then return end
         
-        entity.GameDeviationFactor = 0.5 * (1 - strengthMul * 0.7)
-        entity.WeaponAimInTime = 20
-        entity.SwitchFromIdleToBackpackTime = 0.15
-        entity.SwitchFromBackpackToIdleTime = 0.15
-        entity.ShotGunHorizontalSpread = 0.0
-        entity.ShotGunVerticalSpread = 0.0
-        entity.RecoilKick = 0.2 * (1 - strengthMul * 0.6)
-        entity.RecoilKickADS = 0.2 * (1 - strengthMul * 0.6)
-        entity.AnimationKick = 0.2 * (1 - strengthMul * 0.6)
-        entity.AccessoriesVRecoilFactor = 0.6 * (1 - strengthMul * 0.4)
-        entity.AccessoriesHRecoilFactor = 0.6 * (1 - strengthMul * 0.4)
-        entity.GameDeviationFactor = 0.3 * (1 - strengthMul * 0.7)
-        if entity.RecoilInfo then
-            entity.RecoilInfo.VerticalRecoilMin = 0.2 * (1 - strengthMul * 0.5)
-            entity.RecoilInfo.VerticalRecoilMax = 0.2 * (1 - strengthMul * 0.5)
-            entity.RecoilInfo.RecoilSpeedVertical = 0.2 * (1 - strengthMul * 0.5)
-            entity.RecoilInfo.RecoilSpeedHorizontal = 0.15 * (1 - strengthMul * 0.5)
-            entity.RecoilInfo.VerticalRecoveryMax = 0.2 * (1 - strengthMul * 0.5)
-        end
-        entity.RecoilModifierStand = 0.2 * (1 - strengthMul * 0.5)
-        entity.RecoilModifierCrouch = 0.2 * (1 - strengthMul * 0.5)
-        entity.RecoilModifierProne = 0.2 * (1 - strengthMul * 0.5)
-        if entity.AutoAimingConfig then
-            for _, range in ipairs({"OuterRange", "InnerRange"}) do
-                local cfg = entity.AutoAimingConfig[range]
-                if cfg then
-                    cfg.Speed = 8 * strengthMul
-                    cfg.RangeRate = 2 * strengthMul
-                    cfg.SpeedRate = 5 * strengthMul
-                    cfg.RangeRateSight = 2 * strengthMul
-                    cfg.SpeedRateSight = 4 * strengthMul
-                    cfg.CrouchRate = 4 * strengthMul
-                    cfg.ProneRate = 4 * strengthMul
-                    cfg.DyingRate = 0
-
-                    cfg.adsorbMaxRange = 200 * strengthMul
-                    cfg.adsorbMinRange = 20
-                    cfg.adsorbMinAttenuationDis = 100 * (1 - strengthMul * 0.5)
-                    cfg.adsorbMaxAttenuationDis = 8000
-                    cfg.adsorbActiveMinRange = 20
+        local char = pc:GetPlayerCharacterSafety()
+        if not slua.isValid(char) then return end
+        
+        local weaponManager = char:GetWeaponManagerComponent()
+        if not slua.isValid(weaponManager) then return end
+        
+        local currentWeapon = weaponManager.CurrentWeaponReplicated
+        if not slua.isValid(currentWeapon) then return end
+        
+        local shootComp = currentWeapon.ShootWeaponEntityComp
+        if not slua.isValid(shootComp) then return end
+        
+        if _G.Mod_Aimbot_Enabled then
+            local speed_aimbot = (_G.Mod_AimbotStrength or 100) / 100.0
+            local fov_aimbot = (_G.Mod_Aimbot_Fov or 100) / 100.0
+                                    
+            local speedScale = 3.0 + (3.0 * speed_aimbot)
+            local fovScale = 1.5 + (1.5 * fov_aimbot)
+            if shootComp.AutoAimingConfig then
+                if shootComp.AutoAimingConfig.OuterRange then
+                    shootComp.AutoAimingConfig.OuterRange.Speed = speedScale
+                    shootComp.AutoAimingConfig.OuterRange.SpeedRate = speedScale
+                    shootComp.AutoAimingConfig.OuterRange.RangeRate = fovScale
+                    shootComp.AutoAimingConfig.OuterRange.RangeRateSight = fovScale
+                    shootComp.AutoAimingConfig.OuterRange.SpeedRateSight = speedScale
+                    shootComp.AutoAimingConfig.OuterRange.CrouchRate = 1.0
+                    shootComp.AutoAimingConfig.OuterRange.ProneRate = 1.0
                 end
+                if shootComp.AutoAimingConfig.InnerRange then
+                    shootComp.AutoAimingConfig.InnerRange.Speed = speedScale
+                    shootComp.AutoAimingConfig.InnerRange.SpeedRate = speedScale
+                    shootComp.AutoAimingConfig.InnerRange.RangeRate = fovScale
+                    shootComp.AutoAimingConfig.InnerRange.RangeRateSight = fovScale
+                    shootComp.AutoAimingConfig.InnerRange.SpeedRateSight = speedScale
+                    shootComp.AutoAimingConfig.InnerRange.CrouchRate = 1.0
+                    shootComp.AutoAimingConfig.InnerRange.ProneRate = 1.0
+                end
+                --shootComp.AutoAimingConfig = shootComp.AutoAimingConfig
             end
-            entity.AutoAimingConfig = entity.AutoAimingConfig
         end
-
-        pcall(function()
-            local aimComp = char.BP_AutoAimingComponent_C
-                         or char.BP_AutoAimingComponent
-                         or char.AutoAimingComponent
-
-            if isValid(aimComp) and aimComp.Bones then
-                pcall(function() aimComp.Bones[0] = "head" end)
-                pcall(function() aimComp.Bones[1] = "head" end)
-                pcall(function() aimComp.Bones[2] = "head" end)
-
-                pcall(function() aimComp.Bones:Set(0, "head") end)
-                pcall(function() aimComp.Bones:Set(1, "head") end)
-                pcall(function() aimComp.Bones:Set(2, "head") end)
-            end
-        end)
-
     end)
 end
 
@@ -1624,7 +1589,7 @@ pcall(function()
     end
 end)
 
--- ==================== AKMOD EXTRA BYPASS ====================
+-- ==================== NH EXTRA BYPASS ====================
 pcall(function()
     local function nop() end
     local function retTrue() return true end
@@ -1797,17 +1762,34 @@ pcall(function()
                 {
                     Key = "ModMenu_AimbotStrength",
                     UI = AliasMap.Slider,
-                    Text = "Aimbot Strength",
+                    Text = "Tốc Độ Aimbot",
                     Min = 0,
                     Max = 100,
                     Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
                     GetFunc = function() 
-                        return _G.Mod_AimbotStrength or 90
+                        return _G.Mod_AimbotStrength or 50
                     end,
                     SetFunc = function(_, value)
                         _G.Mod_AimbotStrength = math.floor(value)
                         -- Dòng print này để bạn kiểm tra trong console
-                        print("[MOD] Aimbot Strength: " .. _G.Mod_AimbotStrength)
+                        print("[MOD] Tốc Độ Aimbot: " .. _G.Mod_AimbotStrength)
+                        return true
+                    end
+                },
+                {
+                    Key = "ModMenu_AimbotFov",
+                    UI = AliasMap.Slider,
+                    Text = "Aimbot Fov",
+                    Min = 0,
+                    Max = 100,
+                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
+                    GetFunc = function() 
+                        return _G.Mod_Aimbot_Fov or 50
+                    end,
+                    SetFunc = function(_, value)
+                        _G.Mod_Aimbot_Fov = math.floor(value)
+                        -- Dòng print này để bạn kiểm tra trong console
+                        print("[MOD] Aimbot Fov: " .. _G.Mod_Aimbot_Fov)
                         return true
                     end
                 }
@@ -1829,7 +1811,7 @@ pcall(function()
                 {
                     Key = "NoGrass",
                     UI = AliasMap.Switcher,
-                    Text = "NO GRASS",
+                    Text = "Xóa Cỏ",
                     GetFunc = function() return _G.Mod_NoGrass_Enabled ~= false end,
                     SetFunc = function(_, value)
                         _G.Mod_NoGrass_Enabled = value
@@ -1842,7 +1824,7 @@ pcall(function()
                                 end
                             end)
                         end
-                        print("[MOD] NO GRASS: " .. (value and "Bật" or "Tắt"))
+                        print("[MOD] Xóa Cỏ: " .. (value and "Bật" or "Tắt"))
                         return true
                     end
                 },
@@ -1861,7 +1843,7 @@ pcall(function()
                 {
                     Key = "ModMenu_iPadFOV",
                     UI = AliasMap.Slider,
-                    Text = "iPad FOV",
+                    Text = "iPad View",
                     Min = 80,
                     Max = 150,
                     Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
@@ -1871,7 +1853,7 @@ pcall(function()
                     SetFunc = function(_, value)
                         _G.Mod_iPadViewDistance = math.floor(value)
                         -- Dòng print này để bạn kiểm tra trong console
-                        print("[MOD] FOV đã chọn: " .. _G.Mod_iPadViewDistance)
+                        print("[MOD] IpadView: " .. _G.Mod_iPadViewDistance)
                         return true
                     end
                 }
@@ -1893,7 +1875,7 @@ pcall(function()
                     },
                     {
                         Key = "ModMenu_Other",
-                        loc = "Other", 
+                        loc = "Khác", 
                         Stack = ModMenuOther
                     }
                 }
