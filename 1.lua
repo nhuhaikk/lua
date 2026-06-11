@@ -1219,6 +1219,7 @@ local function ESPTick()
                         HUD:AddDebugText(string.format("[%.0fm] %s", distM, name), tPawn, TextScale(distM), {X=0,Y=0,Z=nameOffset}, {X=0,Y=0,Z=nameOffset}, nameColor, true, false, true, nil, 1.0, true)
 
                     end
+                    pcall(ApplyWallHack, currentPawn, tPawn, uCon)
                 end
             end
         end
