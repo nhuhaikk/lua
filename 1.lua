@@ -1183,55 +1183,41 @@ local function ESPTick()
                     local hpOffset = headZ + 70 + math.min(distM, 60) * 3 + math.max(0, distM - 60) * 0.5
                     local nameOffset = -80 - math.min(distM, 60) * 0.33 - math.max(0, distM - 60) * 0.1
 
-                    ---------------------------------------------------------
-                    -- 1. VẼ CHẤM TRÒN (HEAD DOT) - LUÔN HIỆN KHI BẬT ESP
-                    ---------------------------------------------------------
-                    local hz = headPos and (headPos.Z - oz + 15)
-                    if hz then
-                        local headChar = (crowded) and "●" or (distM <= 25 and "❄" or "●")
-                        HUD:AddDebugText(headChar, tPawn, TextScale(distM), {X=0,Y=0,Z=hz}, {X=0,Y=0,Z=hz}, {R=255,G=0,B=0,A=255}, true, false, true, nil, 1.0, true)
-                    end
-
-                    ---------------------------------------------------------
-                    -- 2. VẼ THANH MÁU (HP) - TÁCH RIÊNG
-                    ---------------------------------------------------------
-                    if _G.Mod_ESP_ShowHP then
+                    if crowded then
+                        local hz = headPos and (headPos.Z - oz + 15)
+                        if hz then HUD:AddDebugText("●", tPawn, TextScale(distM), {X=0,Y=0,Z=hz}, {X=0,Y=0,Z=hz}, {R=255,G=0,B=0,A=255}, true, false, true, nil, 1.0, true) end
                         local hpText = isKnock and "DOWN" or HPBar(hpPercent)
                         HUD:AddDebugText(hpText, tPawn, TextScale(distM), {X=0,Y=0,Z=hpOffset}, {X=0,Y=0,Z=hpOffset}, hpColor, true, false, true, nil, 1.0, true)
-                    end
-
-                    ---------------------------------------------------------
-                    -- 3. VẼ TÊN VÀ KHOẢNG CÁCH - TÁCH RIÊNG
-                    ---------------------------------------------------------
-                    if crowded then
-                        _G.Mod_ESP_ShowHP = false
-                        _G.Mod_ESP_ShowName = false
                     else
-                        -- Xử lý chuỗi hiển thị dựa trên nút bật/tắt
-                        local finalStr = ""
-                        local namePart = _G.Mod_ESP_ShowName and name or ""
-                        local distPart = _G.Mod_ESP_ShowDist and string.format("[%.0fm]", distM) or ""
+                        local hz = headPos and (headPos.Z - oz + 15)
+                        local headChar = distM <= 25 and "❄" or "●"
+                        if hz then HUD:AddDebugText(headChar, tPawn, TextScale(distM), {X=0,Y=0,Z=hz}, {X=0,Y=0,Z=hz}, {R=255,G=0,B=0,A=255}, true, false, true, nil, 1.0, true) end
 
-                        if namePart ~= "" and distPart ~= "" then
-                            finalStr = distPart .. " " .. namePart
-                        else
-                            finalStr = distPart .. namePart -- Một trong hai cái trống
-                        end
+                        local hpText = isKnock and "DOWN" or HPBar(hpPercent)
+                        HUD:AddDebugText(hpText, tPawn, TextScale(distM), {X=0,Y=0,Z=hpOffset}, {X=0,Y=0,Z=hpOffset}, hpColor, true, false, true, nil, 1.0, true)
 
-                        -- Chỉ vẽ nếu có ít nhất 1 trong 2 cái được bật
-                        if finalStr ~= "" then
-                            local nameColor = {R=0,G=255,B=0,A=255}
-                            local targetPos = headPos or tPawn:K2_GetActorLocation()
-                            pcall(function()
-                                if Game:IsTargetPosVisible(myEyePos, targetPos, {currentPawn}) then
-                                    nameColor = {R=0,G=255,B=0,A=255} -- Nhìn thấy (Xanh)
+                        local nameColor = {R=0,G=255,B=0,A=255}
+                        local targetPos = headPos or tPawn:K2_GetActorLocation()
+                        pcall(function()
+                            if Game:IsTargetPosVisible(myEyePos, targetPos, {currentPawn}) then
+                                -- Visible: Use GREEN color if enabled
+                                if _G.Mod_Chams_GreenEnabled then
+                                    nameColor = _G.Mod_Chams_GreenRGB or {R=0,G=255,B=0,A=255}
                                 else
-                                    nameColor = {R=255,G=255,B=0,A=255} -- Bị che (Vàng)
+                                    nameColor = {R=0,G=255,B=0,A=255}
                                 end
-                            end)
+                            else
+                                -- Hidden: Use YELLOW color if enabled
+                                if _G.Mod_Chams_YellowEnabled then
+                                    nameColor = _G.Mod_Chams_YellowRGB or {R=255,G=255,B=0,A=255}
+                                else
+                                    nameColor = {R=255,G=255,B=0,A=255}
+                                end
+                            end
+                        end)
 
-                            HUD:AddDebugText(finalStr, tPawn, TextScale(distM), {X=0,Y=0,Z=nameOffset}, {X=0,Y=0,Z=nameOffset}, nameColor, true, false, true, nil, 1.0, true)
-                        end
+                        HUD:AddDebugText(string.format("[%.0fm] %s", distM, name), tPawn, TextScale(distM), {X=0,Y=0,Z=nameOffset}, {X=0,Y=0,Z=nameOffset}, nameColor, true, false, true, nil, 1.0, true)
+
                     end
                 end
             end
