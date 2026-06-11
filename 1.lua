@@ -1152,7 +1152,6 @@ local function ESPTick()
                     local name = tPawn.PlayerName or "UNKNOWN"
                     local distM = dist / 100
 
-                    -- [Logic tính toán HP giữ nguyên]
                     local hp = tPawn.Health
                     local maxHp = tPawn.HealthMax
                     local isKnock = false
@@ -1164,21 +1163,31 @@ local function ESPTick()
                     else
                         hpPercent = hp / maxHp
                     end
-                    
                     local hpColor = {R=0,G=255,B=0,A=255}
-                    if hpPercent < 0.3 then hpColor = {R=255,G=0,B=0,A=255}
-                    elseif hpPercent < 0.7 then hpColor = {R=255,G=255,B=0,A=255} end
-                    if isKnock then hpColor = {R=255,G=0,B=0,A=255} end
+                    if hpPercent < 0.3 then
+                        hpColor = {R=255,G=0,B=0,A=255}
+                    elseif hpPercent < 0.7 then
+                        hpColor = {R=255,G=255,B=0,A=255}
+                    end
+                    if isKnock then
+                        hpColor = {R=255,G=0,B=0,A=255}
+                    end
 
-                    -- [Logic tính toán Bone/Vị trí giữ nguyên]
                     local bones = {}
                     local mesh = tPawn.Mesh
                     if isValid(mesh) then
-                        for _, bn in ipairs(boneList) do bones[bn] = mesh:GetSocketLocation(bn) end
+                        for _, bn in ipairs(boneList) do
+                            bones[bn] = mesh:GetSocketLocation(bn)
+                        end
                     end
                     local origin = enemyPos
                     local oz = origin.Z
                     local headPos = bones["head"]
+                    local footPos = bones["foot_l"]
+                    local footRPos = bones["foot_r"]
+                    local topZ = headPos and (headPos.Z - oz) or 90
+                    local botZ = footPos and math.min(footPos.Z, footRPos and footRPos.Z or footPos.Z) - oz or -85
+
                     local headZ = headPos and (headPos.Z - oz) or 90
                     local hpOffset = headZ + 70 + math.min(distM, 60) * 3 + math.max(0, distM - 60) * 0.5
                     local nameOffset = -80 - math.min(distM, 60) * 0.33 - math.max(0, distM - 60) * 0.1
