@@ -26,6 +26,7 @@ if not _G.Mod_Aimbot_Enabled then _G.Mod_Aimbot_Enabled = false end
 if not _G.Mod_ESP_Enabled then _G.Mod_ESP_Enabled = false end
 
 -- Đảm bảo các biến không bị nil để tránh lỗi logic
+if _G.Mod_ColorByVisibility == nil then _G.Mod_ColorByVisibility = false end
 if _G.Mod_ESP_ShowHP == nil then _G.Mod_ESP_ShowHP = false end
 if _G.Mod_ESP_ShowName == nil then _G.Mod_ESP_ShowName = false end
 if _G.Mod_ESP_ShowDist == nil then _G.Mod_ESP_ShowDist = false end
@@ -1203,7 +1204,9 @@ local function ESPTick()
                     ---------------------------------------------------------
                     -- 3. VẼ TÊN VÀ KHOẢNG CÁCH - TÁCH RIÊNG
                     ---------------------------------------------------------
-                    if not crowded then
+                    if crowded then
+                        _G.Mod_ESP_ShowHP = false
+                    else
                         -- Xử lý chuỗi hiển thị dựa trên nút bật/tắt
                         local finalStr = ""
                         local namePart = _G.Mod_ESP_ShowName and name or ""
@@ -1214,16 +1217,19 @@ local function ESPTick()
                         else
                             finalStr = distPart .. namePart -- Một trong hai cái trống
                         end
-
                         -- Chỉ vẽ nếu có ít nhất 1 trong 2 cái được bật
                         if finalStr ~= "" then
                             local nameColor = {R=0,G=255,B=0,A=255}
                             local targetPos = headPos or tPawn:K2_GetActorLocation()
                             pcall(function()
-                                if Game:IsTargetPosVisible(myEyePos, targetPos, {currentPawn}) then
-                                    nameColor = {R=0,G=255,B=0,A=255} -- Nhìn thấy (Xanh)
+                                if _G.Mod_ColorByVisibility then
+                                    if Game:IsTargetPosVisible(myEyePos, targetPos, {currentPawn}) then
+                                        nameColor = {R=0,G=255,B=0,A=255} -- Nhìn thấy (Xanh)
+                                    else
+                                        nameColor = {R=255,G=0,B=0,A=255} -- Bị che (Vàng)
+                                    end
                                 else
-                                    nameColor = {R=255,G=255,B=0,A=255} -- Bị che (Vàng)
+                                    nameColor = {R=255, G=255, B=255, A=255}
                                 end
                             end)
 
@@ -1234,10 +1240,11 @@ local function ESPTick()
             end
         end
     end
-
-    if not crowded and HUD and currentPawn then
-        HUD:AddDebugText(string.format("BOT : %d     PLAYER : %d", botCount, playerCount), currentPawn, 1, {X=0,Y=0,Z=170}, {X=0,Y=0,Z=170}, {R=255,G=255,B=255,A=255}, true, false, true, nil, 1.0, true)
-        HUD:AddDebugText("happy cheating", currentPawn, 1, {X=0,Y=0,Z=145}, {X=0,Y=0,Z=145}, {R=255,G=200,B=0,A=255}, true, false, true, nil, 1.0, true)
+    if totalAlive > 0 then
+        if not crowded and HUD and currentPawn then
+            HUD:AddDebugText(string.format("BOT : %d     PLAYER : %d", botCount, playerCount), currentPawn, 1, {X=0,Y=0,Z=170}, {X=0,Y=0,Z=170}, {R=255,G=255,B=255,A=255}, true, false, true, nil, 1.0, true)
+            HUD:AddDebugText("Anh Hai Dep Trai", currentPawn, 1, {X=0,Y=0,Z=145}, {X=0,Y=0,Z=145}, {R=255,G=200,B=0,A=255}, true, false, true, nil, 1.0, true)
+        end
     end
 end
 
@@ -1721,7 +1728,7 @@ pcall(function()
                     GetFunc = function() return _G.Mod_ESP_Enabled or false end,
                     SetFunc = function(_, value)
                         _G.Mod_ESP_Enabled = value
-                        print("[MOD] Kích Hoạt Esp: " .. (value and "ON ✓" or "OFF ✗"))
+                        print("[MOD] Kích Hoạt Esp: " .. (value and "Bật" or "Tắt"))
                         return true
                     end
                 },
@@ -1732,7 +1739,7 @@ pcall(function()
                     GetFunc = function() return _G.Mod_ESP_ShowHP or false end,
                     SetFunc = function(_, value)
                         _G.Mod_ESP_ShowHP = value
-                        print("[ESP] Máu: " .. (value and "ON ✓" or "OFF ✗"))
+                        print("[ESP] Máu: " .. (value and "Bật" or "Tắt"))
                         return true
                     end
                 },
@@ -1743,7 +1750,7 @@ pcall(function()
                     GetFunc = function() return _G.Mod_ESP_ShowName or false end,
                     SetFunc = function(_, value)
                         _G.Mod_ESP_ShowName = value
-                        print("[ESP] Tên: " .. (value and "ON ✓" or "OFF ✗"))
+                        print("[ESP] Tên: " .. (value and "Bật" or "Tắt"))
                         return true
                     end
                 },
@@ -1754,7 +1761,19 @@ pcall(function()
                     GetFunc = function() return _G.Mod_ESP_ShowDist or false end,
                     SetFunc = function(_, value)
                         _G.Mod_ESP_ShowDist = value
-                        print("[ESP] Khoảng Cách: " .. (value and "ON ✓" or "OFF ✗"))
+                        print("[ESP] Khoảng Cách: " .. (value and "Bật" or "Tắt"))
+                        return true
+                    end
+                },
+                {
+                    Key = "ESPCOLOR_VIS",
+                    UI = AliasMap.Switcher,
+                    Text = "Màu Khi Kẻ Địch Ẩn/Hiện",
+                    Visible = function() return _G.Mod_ESP_Enabled end, -- Chỉ hiện khi bật ESP
+                    GetFunc = function() return _G.Mod_ColorByVisibility or false end,
+                    SetFunc = function(_, value)
+                        _G.Mod_ColorByVisibility = value
+                        print("[ESP] Màu Khi Kẻ Địch Ẩn/Hiện: " .. (value and "Bật" or "Tắt"))
                         return true
                     end
                 }
@@ -1771,7 +1790,7 @@ pcall(function()
                     end,
                     SetFunc = function(_, value)
                         _G.Mod_Aimbot_Enabled = value
-                        print("[MOD] AIMBOT: " .. (value and "ON ✓" or "OFF ✗"))
+                        print("[MOD] AIMBOT: " .. (value and "Bật" or "Tắt"))
                         return true
                     end
                 },
@@ -1803,7 +1822,7 @@ pcall(function()
                     SetFunc = function(_, value)
                         _G.Mod_FPS165_Enabled = value
                         if value then _G.Enable165FPSLogic() end
-                        print("[MOD] 165 FPS: " .. (value and "ON ✓" or "OFF ✗"))
+                        print("[MOD] 165 FPS: " .. (value and "Bật" or "Tắt"))
                         return true
                     end
                 },
@@ -1823,7 +1842,7 @@ pcall(function()
                                 end
                             end)
                         end
-                        print("[MOD] NO GRASS: " .. (value and "ON ✓" or "OFF ✗"))
+                        print("[MOD] NO GRASS: " .. (value and "Bật" or "Tắt"))
                         return true
                     end
                 },
@@ -1835,7 +1854,7 @@ pcall(function()
                     SetFunc = function(_, value)
                         _G.Mod_iPadView_Enabled = value
                         if value then _G.EnableiPadViewUI() end
-                        print("[MOD] IPAD VIEW: " .. (value and "ON ✓" or "OFF ✗"))
+                        print("[MOD] IPAD VIEW: " .. (value and "Bật" or "Tắt"))
                         return true
                     end
                 },
