@@ -1203,7 +1203,10 @@ local function ESPTick()
                     ---------------------------------------------------------
                     -- 3. VẼ TÊN VÀ KHOẢNG CÁCH - TÁCH RIÊNG
                     ---------------------------------------------------------
-                    if not crowded then
+                    if crowded then
+                        _G.Mod_ESP_ShowHP = false
+                        _G.Mod_ESP_ShowName = false
+                    else
                         -- Xử lý chuỗi hiển thị dựa trên nút bật/tắt
                         local finalStr = ""
                         local namePart = _G.Mod_ESP_ShowName and name or ""
