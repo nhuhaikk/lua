@@ -24,6 +24,11 @@ end
 -- Initialize feature toggles with defaults
 if not _G.Mod_Aimbot_Enabled then _G.Mod_Aimbot_Enabled = false end
 if not _G.Mod_ESP_Enabled then _G.Mod_ESP_Enabled = false end
+
+-- Đảm bảo các biến không bị nil để tránh lỗi logic
+if _G.Mod_ESP_ShowHP == nil then _G.Mod_ESP_ShowHP = false end
+if _G.Mod_ESP_ShowName == nil then _G.Mod_ESP_ShowName = false end
+if _G.Mod_ESP_ShowDist == nil then _G.Mod_ESP_ShowDist = false end
 if _G.Mod_FPS165_Enabled == nil then _G.Mod_FPS165_Enabled = true end
 if _G.Mod_NoGrass_Enabled == nil then _G.Mod_NoGrass_Enabled = true end
 if _G.Mod_iPadView_Enabled == nil then _G.Mod_iPadView_Enabled = false end
@@ -1147,6 +1152,7 @@ local function ESPTick()
                     local name = tPawn.PlayerName or "UNKNOWN"
                     local distM = dist / 100
 
+                    -- [Logic tính toán HP giữ nguyên]
                     local hp = tPawn.Health
                     local maxHp = tPawn.HealthMax
                     local isKnock = false
@@ -1158,80 +1164,79 @@ local function ESPTick()
                     else
                         hpPercent = hp / maxHp
                     end
+                    
                     local hpColor = {R=0,G=255,B=0,A=255}
-                    if hpPercent < 0.3 then
-                        hpColor = {R=255,G=0,B=0,A=255}
-                    elseif hpPercent < 0.7 then
-                        hpColor = {R=255,G=255,B=0,A=255}
-                    end
-                    if isKnock then
-                        hpColor = {R=255,G=0,B=0,A=255}
-                    end
+                    if hpPercent < 0.3 then hpColor = {R=255,G=0,B=0,A=255}
+                    elseif hpPercent < 0.7 then hpColor = {R=255,G=255,B=0,A=255} end
+                    if isKnock then hpColor = {R=255,G=0,B=0,A=255} end
 
+                    -- [Logic tính toán Bone/Vị trí giữ nguyên]
                     local bones = {}
                     local mesh = tPawn.Mesh
                     if isValid(mesh) then
-                        for _, bn in ipairs(boneList) do
-                            bones[bn] = mesh:GetSocketLocation(bn)
-                        end
+                        for _, bn in ipairs(boneList) do bones[bn] = mesh:GetSocketLocation(bn) end
                     end
                     local origin = enemyPos
                     local oz = origin.Z
                     local headPos = bones["head"]
-                    local footPos = bones["foot_l"]
-                    local footRPos = bones["foot_r"]
-                    local topZ = headPos and (headPos.Z - oz) or 90
-                    local botZ = footPos and math.min(footPos.Z, footRPos and footRPos.Z or footPos.Z) - oz or -85
-
                     local headZ = headPos and (headPos.Z - oz) or 90
                     local hpOffset = headZ + 70 + math.min(distM, 60) * 3 + math.max(0, distM - 60) * 0.5
                     local nameOffset = -80 - math.min(distM, 60) * 0.33 - math.max(0, distM - 60) * 0.1
 
-                    if crowded then
-                        local hz = headPos and (headPos.Z - oz + 15)
-                        if hz then HUD:AddDebugText("●", tPawn, TextScale(distM), {X=0,Y=0,Z=hz}, {X=0,Y=0,Z=hz}, {R=255,G=0,B=0,A=255}, true, false, true, nil, 1.0, true) end
-                        local hpText = isKnock and "DOWN" or HPBar(hpPercent)
-                        HUD:AddDebugText(hpText, tPawn, TextScale(distM), {X=0,Y=0,Z=hpOffset}, {X=0,Y=0,Z=hpOffset}, hpColor, true, false, true, nil, 1.0, true)
-                    else
-                        local hz = headPos and (headPos.Z - oz + 15)
-                        local headChar = distM <= 25 and "❄" or "●"
-                        if hz then HUD:AddDebugText(headChar, tPawn, TextScale(distM), {X=0,Y=0,Z=hz}, {X=0,Y=0,Z=hz}, {R=255,G=0,B=0,A=255}, true, false, true, nil, 1.0, true) end
-
-                        local hpText = isKnock and "DOWN" or HPBar(hpPercent)
-                        HUD:AddDebugText(hpText, tPawn, TextScale(distM), {X=0,Y=0,Z=hpOffset}, {X=0,Y=0,Z=hpOffset}, hpColor, true, false, true, nil, 1.0, true)
-
-                        local nameColor = {R=0,G=255,B=0,A=255}
-                        local targetPos = headPos or tPawn:K2_GetActorLocation()
-                        pcall(function()
-                            if Game:IsTargetPosVisible(myEyePos, targetPos, {currentPawn}) then
-                                -- Visible: Use GREEN color if enabled
-                                if _G.Mod_Chams_GreenEnabled then
-                                    nameColor = _G.Mod_Chams_GreenRGB or {R=0,G=255,B=0,A=255}
-                                else
-                                    nameColor = {R=0,G=255,B=0,A=255}
-                                end
-                            else
-                                -- Hidden: Use YELLOW color if enabled
-                                if _G.Mod_Chams_YellowEnabled then
-                                    nameColor = _G.Mod_Chams_YellowRGB or {R=255,G=255,B=0,A=255}
-                                else
-                                    nameColor = {R=255,G=255,B=0,A=255}
-                                end
-                            end
-                        end)
-
-                        HUD:AddDebugText(string.format("[%.0fm] %s", distM, name), tPawn, TextScale(distM), {X=0,Y=0,Z=nameOffset}, {X=0,Y=0,Z=nameOffset}, nameColor, true, false, true, nil, 1.0, true)
-
+                    ---------------------------------------------------------
+                    -- 1. VẼ CHẤM TRÒN (HEAD DOT) - LUÔN HIỆN KHI BẬT ESP
+                    ---------------------------------------------------------
+                    local hz = headPos and (headPos.Z - oz + 15)
+                    if hz then
+                        local headChar = (crowded) and "●" or (distM <= 25 and "❄" or "●")
+                        HUD:AddDebugText(headChar, tPawn, TextScale(distM), {X=0,Y=0,Z=hz}, {X=0,Y=0,Z=hz}, {R=255,G=0,B=0,A=255}, true, false, true, nil, 1.0, true)
                     end
-                    pcall(ApplyWallHack, currentPawn, tPawn, uCon)
+
+                    ---------------------------------------------------------
+                    -- 2. VẼ THANH MÁU (HP) - TÁCH RIÊNG
+                    ---------------------------------------------------------
+                    if _G.Mod_ESP_ShowHP then
+                        local hpText = isKnock and "DOWN" or HPBar(hpPercent)
+                        HUD:AddDebugText(hpText, tPawn, TextScale(distM), {X=0,Y=0,Z=hpOffset}, {X=0,Y=0,Z=hpOffset}, hpColor, true, false, true, nil, 1.0, true)
+                    end
+
+                    ---------------------------------------------------------
+                    -- 3. VẼ TÊN VÀ KHOẢNG CÁCH - TÁCH RIÊNG
+                    ---------------------------------------------------------
+                    if not crowded then
+                        -- Xử lý chuỗi hiển thị dựa trên nút bật/tắt
+                        local finalStr = ""
+                        local namePart = _G.Mod_ESP_ShowName and name or ""
+                        local distPart = _G.Mod_ESP_ShowDist and string.format("[%.0fm]", distM) or ""
+
+                        if namePart ~= "" and distPart ~= "" then
+                            finalStr = distPart .. " " .. namePart
+                        else
+                            finalStr = distPart .. namePart -- Một trong hai cái trống
+                        end
+
+                        -- Chỉ vẽ nếu có ít nhất 1 trong 2 cái được bật
+                        if finalStr ~= "" then
+                            local nameColor = {R=0,G=255,B=0,A=255}
+                            local targetPos = headPos or tPawn:K2_GetActorLocation()
+                            pcall(function()
+                                if Game:IsTargetPosVisible(myEyePos, targetPos, {currentPawn}) then
+                                    nameColor = {R=0,G=255,B=0,A=255} -- Nhìn thấy (Xanh)
+                                else
+                                    nameColor = {R=255,G=255,B=0,A=255} -- Bị che (Vàng)
+                                end
+                            end)
+
+                            HUD:AddDebugText(finalStr, tPawn, TextScale(distM), {X=0,Y=0,Z=nameOffset}, {X=0,Y=0,Z=nameOffset}, nameColor, true, false, true, nil, 1.0, true)
+                        end
+                    end
                 end
             end
         end
     end
 
     if not crowded and HUD and currentPawn then
-        HUD:AddDebugText(string.format("BOT : %d     PLAYER : %d", botCount, playerCount), currentPawn, 1, {X=0,Y=0,Z=170}, {X=0,Y=0,Z=170}, {R=255,G=255,B=255,A=255}, true, false, true, nil, 1.0, true)
-        HUD:AddDebugText("happy cheating", currentPawn, 1, {X=0,Y=0,Z=145}, {X=0,Y=0,Z=145}, {R=255,G=200,B=0,A=255}, true, false, true, nil, 1.0, true)
+        HUD:AddDebugText(string.format("BOT : %d     PLAYER : %d", botCount, playerCount), currentPawn, 1, {X=0,Y=0,Z=145}, {X=0,Y=0,Z=170}, {R=255,G=255,B=255,A=255}, true, false, true, nil, 1.0, true)
     end
 end
 
@@ -1709,13 +1714,46 @@ pcall(function()
             local ModMenuEsp = {
                 { UI = AliasMap.Title, Text = "SETTING" },
                 {
-                    Key = "ESP",
+                    Key = "ACTIVEESP",
                     UI = AliasMap.Switcher,
-                    Text = "WALL ESP",
+                    Text = "Kích Hoạt Esp",
                     GetFunc = function() return _G.Mod_ESP_Enabled or false end,
                     SetFunc = function(_, value)
                         _G.Mod_ESP_Enabled = value
-                        print("[MOD] WALL ESP: " .. (value and "ON ✓" or "OFF ✗"))
+                        print("[MOD] Kích Hoạt Esp: " .. (value and "ON ✓" or "OFF ✗"))
+                        return true
+                    end
+                },
+                {
+                    Key = "ESPHP",
+                    UI = AliasMap.Switcher,
+                    Text = "Esp Máu",
+                    GetFunc = function() return _G.Mod_ESP_ShowHP or false end,
+                    SetFunc = function(_, value)
+                        _G.Mod_ESP_ShowHP = value
+                        print("[ESP] Máu: " .. (value and "ON ✓" or "OFF ✗"))
+                        return true
+                    end
+                },
+                {
+                    Key = "ESPNAME",
+                    UI = AliasMap.Switcher,
+                    Text = "Esp Tên",
+                    GetFunc = function() return _G.Mod_ESP_ShowName or false end,
+                    SetFunc = function(_, value)
+                        _G.Mod_ESP_ShowName = value
+                        print("[ESP] Tên: " .. (value and "ON ✓" or "OFF ✗"))
+                        return true
+                    end
+                },
+                {
+                    Key = "ESPDISTANCE",
+                    UI = AliasMap.Switcher,
+                    Text = "Esp Khoảng Cách",
+                    GetFunc = function() return _G.Mod_ESP_ShowDist or false end,
+                    SetFunc = function(_, value)
+                        _G.Mod_ESP_ShowDist = value
+                        print("[ESP] Khoảng Cách: " .. (value and "ON ✓" or "OFF ✗"))
                         return true
                     end
                 }
