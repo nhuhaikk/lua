@@ -1740,12 +1740,16 @@ pcall(function()
                     Key = "ModMenu_AimbotStrength",
                     UI = AliasMap.Slider,
                     Text = "Aimbot Strength",
+                    Min = 0,
+                    Max = 100,
+                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
                     GetFunc = function() 
-                        return (_G.Mod_AimbotStrength or 50) / 100
+                        return _G.Mod_AimbotStrength or 90
                     end,
                     SetFunc = function(_, value)
-                        _G.Mod_AimbotStrength = math.floor(value * 100)
-                        print("[MOD] Aimbot Strength: " .. _G.Mod_AimbotStrength .. "%")
+                        _G.Mod_AimbotStrength = math.floor(value)
+                        -- Dòng print này để bạn kiểm tra trong console
+                        print("[MOD] Aimbot Strength: " .. _G.Mod_AimbotStrength)
                         return true
                     end
                 }
@@ -1797,16 +1801,19 @@ pcall(function()
                     end
                 },
                 {
-                    Key = "ModMenu_iPadViewDistance",
+                    Key = "ModMenu_iPadFOV",
                     UI = AliasMap.Slider,
-                    Text = "View Distance (80-140)",
+                    Text = "iPad FOV",
+                    Min = 80,
+                    Max = 150,
+                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
                     GetFunc = function() 
-                        local currentVal = _G.Mod_iPadViewDistance or 90 -- Mặc định là 90 nếu chưa set
-                        return (currentVal - 80) / 60
+                        return _G.Mod_iPadViewDistance or 90
                     end,
                     SetFunc = function(_, value)
-                        _G.Mod_iPadViewDistance = math.floor(80 + (value * 60))
-                        print("[MOD] View Distance: " .. _G.Mod_iPadViewDistance)
+                        _G.Mod_iPadViewDistance = math.floor(value)
+                        -- Dòng print này để bạn kiểm tra trong console
+                        print("[MOD] FOV đã chọn: " .. _G.Mod_iPadViewDistance)
                         return true
                     end
                 }
