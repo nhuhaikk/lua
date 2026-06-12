@@ -1220,13 +1220,13 @@ local function ESPTick()
                         local bodyZ = GetEnemyPoseOffset(tPawn)
                         local fSize = GetNameFontSize(distM)
 
-                        HUD:AddDebugText("■", tPawn, 1, {X=0, Y=0, Z=90+bodyZ}, {X=0, Y=0, Z=90+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=0, Z=65+bodyZ}, {X=0, Y=0, Z=65+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=-20, Z=55+bodyZ}, {X=0, Y=-20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=20, Z=55+bodyZ}, {X=0, Y=20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=0, Z=30+bodyZ}, {X=0, Y=0, Z=30+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=-20, Z=10}, {X=0, Y=-20, Z=10}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=20, Z=10}, {X=0, Y=20, Z=10}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("●", tPawn, 1, {X=0, Y=0, Z=90+bodyZ}, {X=0, Y=0, Z=90+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText(".︎", tPawn, 1, {X=0, Y=0, Z=65+bodyZ}, {X=0, Y=0, Z=65+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText(".︎", tPawn, 1, {X=0, Y=-20, Z=55+bodyZ}, {X=0, Y=-20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText(".︎", tPawn, 1, {X=0, Y=20, Z=55+bodyZ}, {X=0, Y=20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText(".︎", tPawn, 1, {X=0, Y=0, Z=30+bodyZ}, {X=0, Y=0, Z=30+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText(".", tPawn, 1, {X=0, Y=-20, Z=10}, {X=0, Y=-20, Z=10}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText(".︎", tPawn, 1, {X=0, Y=20, Z=10}, {X=0, Y=20, Z=10}, color, true, false, true, nil, fSize, true)
                         
                         HUD:AddDebugText(string.format("%.0fm", distM), tPawn, 0.3, {X=0, Y=0, Z=-95}, {X=0, Y=0, Z=-95}, {R=255,G=255,B=255,A=255}, true, false, true, nil, fSize, true)
                     end
@@ -1471,14 +1471,14 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
                 local assetName = (physAsset.GetName and physAsset:GetName()) or tostring(physAsset)
                 if not _G._MBones[assetName] then
                   local mb = {
-                    ["head"]=50, ["neck_01"]=40, ["pelvis"]=40,
-                    ["spine_01"]=40, ["spine_02"]=40, ["spine_03"]=40,
-                    ["upperarm_l"]=30, ["upperarm_r"]=30,
-                    ["lowerarm_l"]=25, ["lowerarm_r"]=25,
-                    ["hand_l"]=20, ["hand_r"]=20,
-                    ["thigh_l"]=30, ["thigh_r"]=30,
-                    ["calf_l"]=25, ["calf_r"]=25,
-                    ["foot_l"]=20, ["foot_r"]=20,
+                    ["head"]=93, ["neck_01"]=93, ["pelvis"]=93,
+                    ["spine_01"]=93, ["spine_02"]=93, ["spine_03"]=93,
+                    ["upperarm_l"]=93, ["upperarm_r"]=93,
+                    ["lowerarm_l"]=93, ["lowerarm_r"]=93,
+                    ["hand_l"]=93, ["hand_r"]=93,
+                    ["thigh_l"]=93, ["thigh_r"]=93,
+                    ["calf_l"]=93, ["calf_r"]=93,
+                    ["foot_l"]=93, ["foot_r"]=93,
                   }
                   local setups = physAsset.SkeletalBodySetups
                   for i = 1, 80 do
