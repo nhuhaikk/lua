@@ -1501,23 +1501,15 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
                   local nhMagicSTLess = 1.0 + (_G.Mod_MagicLess / 100.0)
 
                   local mb = {
-                    ["head"] = nhMagicSTHead,
-                    ["pelvis"] = nhMagicSTBody,
-                    ["spineBone03"] = nhMagicSTBody,
-                    ["thigh_l"] = nhMagicSTLess, ["thigh_r"] = nhMagicSTLess,
-                    ["calf_l"] = nhMagicSTLess, ["calf_r"] = nhMagicSTLess,   
-                    ["foot_l"] = nhMagicSTLess, ["foot_r"] = nhMagicSTLess    
+                    ["head"]=nhMagicSTHead, ["neck_01"]=nhMagicSTHead, ["pelvis"]=nhMagicSTBody,
+                    ["spine_01"]=nhMagicSTBody, ["spine_02"]=nhMagicSTBody, ["spine_03"]=nhMagicSTBody,
+                    ["upperarm_l"]=nhMagicSTBody, ["upperarm_r"]=nhMagicSTBody,
+                    ["lowerarm_l"]=nhMagicSTBody, ["lowerarm_r"]=nhMagicSTBody,
+                    ["hand_l"]=nhMagicSTBody, ["hand_r"]=nhMagicSTBody,
+                    ["thigh_l"]=nhMagicSTLess, ["thigh_r"]=nhMagicSTLess,
+                    ["calf_l"]=nhMagicSTLess, ["calf_r"]=nhMagicSTLess,
+                    ["foot_l"]=nhMagicSTLess, ["foot_r"]=nhMagicSTLess,
                   }
-                  --local mb = {
-                    --["head"]=93, ["neck_01"]=93, ["pelvis"]=93,
-                    --["spine_01"]=93, ["spine_02"]=93, ["spine_03"]=93,
-                    --["upperarm_l"]=93, ["upperarm_r"]=93,
-                    --["lowerarm_l"]=93, ["lowerarm_r"]=93,
-                    --["hand_l"]=93, ["hand_r"]=93,
-                    --["thigh_l"]=93, ["thigh_r"]=93,
-                    --["calf_l"]=93, ["calf_r"]=93,
-                    --["foot_l"]=93, ["foot_r"]=93,
-                  --}
                   local setups = physAsset.SkeletalBodySetups
                   for i = 1, 80 do
                     local bs = nil
