@@ -30,6 +30,7 @@ if _G.Mod_ColorByVisibility == nil then _G.Mod_ColorByVisibility = false end
 if _G.Mod_ESP_ShowHP == nil then _G.Mod_ESP_ShowHP = false end
 if _G.Mod_ESP_ShowName == nil then _G.Mod_ESP_ShowName = false end
 if _G.Mod_ESP_ShowDist == nil then _G.Mod_ESP_ShowDist = false end
+if _G.Mod_ESP_Skeleton == nil then _G.Mod_ESP_Skeleton = false end
 if _G.Mod_FPS165_Enabled == nil then _G.Mod_FPS165_Enabled = true end
 if _G.Mod_NoGrass_Enabled == nil then _G.Mod_NoGrass_Enabled = true end
 if _G.Mod_iPadView_Enabled == nil then _G.Mod_iPadView_Enabled = false end
@@ -37,7 +38,7 @@ if _G.Mod_iPadView_Enabled == nil then _G.Mod_iPadView_Enabled = false end
 -- Slider values for fine-tuning
 if _G.Mod_AimbotStrength == nil then _G.Mod_AimbotStrength = 50 end -- 0-100 slider
 if _G.Mod_Aimbot_Fov == nil then _G.Mod_Aimbot_Fov = 50 end -- 0-100 slider
-if _G.Mod_iPadViewDistance == nil then _G.Mod_iPadViewDistance = 90 end -- 80-140 slider
+if _G.Mod_iPadViewDistance == nil then _G.Mod_iPadViewDistance = 90 end -- 90-140 slider
 
 local require = require
 local import  = import
@@ -1081,6 +1082,23 @@ local function IsPawnAlive(p)
     return p.GetHealth and (p:GetHealth() or 0) > 0 or false
 end
 
+local function GetEnemyPoseOffset(enemy)
+    local pose = 0
+    if enemy.PoseState then pose = enemy.PoseState
+    elseif enemy.GetPoseState then pose = enemy:GetPoseState() end
+    if pose == 1 then return -30, 50 -- Ngồi
+    elseif pose == 2 then return -60, 20 -- Nằm
+    end
+    return 0, 80 -- Đứng
+end
+
+local function GetNameFontSize(distM)
+    local maxDist = 350
+    if distM >= maxDist then return 0.38 end
+    local t = (distM / maxDist)
+    return 1.0 - (0.62 * t * t)
+end
+
 local boneList = {"head","neck_01","spine_01","spine_02","spine_03","pelvis",
     "upperarm_l","upperarm_r","lowerarm_l","lowerarm_r","hand_l","hand_r",
     "calf_l","calf_r","foot_l","foot_r"}
@@ -1194,6 +1212,24 @@ local function ESPTick()
                         HUD:AddDebugText(headChar, tPawn, TextScale(distM), {X=0,Y=0,Z=hz}, {X=0,Y=0,Z=hz}, {R=255,G=0,B=0,A=255}, true, false, true, nil, 1.0, true)
                     end
 
+                    if _G.Mod_ESP_Skeleton then
+                        local headLoc = tPawn:GetHeadLocation(false) or enemyPos
+                        local isVisible = Game:IsTargetPosVisible(myEyePos, headLoc, {player})
+                        local color = isVisible and {R=0,G=255,B=0,A=255} or {R=255,G=0,B=0,A=255}
+                        
+                        local bodyZ = GetEnemyPoseOffset(tPawn)
+                        local fSize = GetNameFontSize(distM)
+
+                        HUD:AddDebugText("■", tPawn, 1, {X=0, Y=0, Z=90+bodyZ}, {X=0, Y=0, Z=90+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("||︎", tPawn, 1, {X=0, Y=0, Z=65+bodyZ}, {X=0, Y=0, Z=65+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("||", tPawn, 1, {X=0, Y=-20, Z=55+bodyZ}, {X=0, Y=-20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("||", tPawn, 1, {X=0, Y=20, Z=55+bodyZ}, {X=0, Y=20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("||︎", tPawn, 1, {X=0, Y=0, Z=30+bodyZ}, {X=0, Y=0, Z=30+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("||", tPawn, 1, {X=0, Y=-20, Z=10}, {X=0, Y=-20, Z=10}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("||", tPawn, 1, {X=0, Y=20, Z=10}, {X=0, Y=20, Z=10}, color, true, false, true, nil, fSize, true)
+                        
+                        HUD:AddDebugText(string.format("%.0fm", distM), tPawn, 0.3, {X=0, Y=0, Z=-95}, {X=0, Y=0, Z=-95}, {R=255,G=255,B=255,A=255}, true, false, true, nil, fSize, true)
+                    end
                     ---------------------------------------------------------
                     -- 2. VẼ THANH MÁU (HP) - TÁCH RIÊNG
                     ---------------------------------------------------------
@@ -1227,7 +1263,7 @@ local function ESPTick()
                                     if Game:IsTargetPosVisible(myEyePos, targetPos, {currentPawn}) then
                                         nameColor = {R=0,G=255,B=0,A=255} -- Nhìn thấy (Xanh)
                                     else
-                                        nameColor = {R=255,G=0,B=0,A=255} -- Bị che (Vàng)
+                                        nameColor = {R=255,G=0,B=0,A=255} -- Bị che (Đỏ)
                                     end
                                 else
                                     nameColor = {R=255, G=255, B=255, A=255}
@@ -1709,6 +1745,17 @@ pcall(function()
                     end
                 },
                 {
+                    Key = "ESPSKELETON",
+                    UI = AliasMap.Switcher,
+                    Text = "Esp Xương",
+                    GetFunc = function() return _G.Mod_ESP_Skeleton or false end,
+                    SetFunc = function(_, value)
+                        _G.Mod_ESP_Skeleton = value
+                        print("[ESP] Xương: " .. (value and "Bật" or "Tắt"))
+                        return true
+                    end
+                },
+                {
                     Key = "ESPNAME",
                     UI = AliasMap.Switcher,
                     Text = "Esp Tên",
@@ -1844,7 +1891,7 @@ pcall(function()
                     Key = "ModMenu_iPadFOV",
                     UI = AliasMap.Slider,
                     Text = "iPad View",
-                    Min = 80,
+                    Min = 90,
                     Max = 150,
                     Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
                     GetFunc = function() 
