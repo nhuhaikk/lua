@@ -1221,12 +1221,12 @@ local function ESPTick()
                         local fSize = GetNameFontSize(distM)
 
                         HUD:AddDebugText("■", tPawn, 1, {X=0, Y=0, Z=90+bodyZ}, {X=0, Y=0, Z=90+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("||︎", tPawn, 1, {X=0, Y=0, Z=65+bodyZ}, {X=0, Y=0, Z=65+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("||", tPawn, 1, {X=0, Y=-20, Z=55+bodyZ}, {X=0, Y=-20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("||", tPawn, 1, {X=0, Y=20, Z=55+bodyZ}, {X=0, Y=20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("||︎", tPawn, 1, {X=0, Y=0, Z=30+bodyZ}, {X=0, Y=0, Z=30+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("||", tPawn, 1, {X=0, Y=-20, Z=10}, {X=0, Y=-20, Z=10}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText("||", tPawn, 1, {X=0, Y=20, Z=10}, {X=0, Y=20, Z=10}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=0, Z=65+bodyZ}, {X=0, Y=0, Z=65+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=-20, Z=55+bodyZ}, {X=0, Y=-20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=20, Z=55+bodyZ}, {X=0, Y=20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=0, Z=30+bodyZ}, {X=0, Y=0, Z=30+bodyZ}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=-20, Z=10}, {X=0, Y=-20, Z=10}, color, true, false, true, nil, fSize, true)
+                        HUD:AddDebugText("▪︎", tPawn, 1, {X=0, Y=20, Z=10}, {X=0, Y=20, Z=10}, color, true, false, true, nil, fSize, true)
                         
                         HUD:AddDebugText(string.format("%.0fm", distM), tPawn, 0.3, {X=0, Y=0, Z=-95}, {X=0, Y=0, Z=-95}, {R=255,G=255,B=255,A=255}, true, false, true, nil, fSize, true)
                     end
