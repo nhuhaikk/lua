@@ -38,9 +38,9 @@ if _G.Mod_iPadView_Enabled == nil then _G.Mod_iPadView_Enabled = false end
 -- Slider values for fine-tuning
 if _G.Mod_AimbotStrength == nil then _G.Mod_AimbotStrength = 50 end -- 0-100 slider
 if _G.Mod_Aimbot_Fov == nil then _G.Mod_Aimbot_Fov = 50 end -- 0-100 slider
-if _G.Mod_MagicHead == nil then _G.Mod_MagicHead = 0 end -- 0-100 slider
-if _G.Mod_MagicBody == nil then _G.Mod_MagicBody = 0 end -- 0-100 slider
-if _G.Mod_MagicLess == nil then _G.Mod_MagicLess = 0 end -- 0-100 slider
+if _G.Mod_MagicHead == nil then _G.Mod_MagicHead = 50 end -- 0-100 slider
+if _G.Mod_MagicBody == nil then _G.Mod_MagicBody = 50 end -- 0-100 slider
+if _G.Mod_MagicLess == nil then _G.Mod_MagicLess = 50 end -- 0-100 slider
 if _G.Mod_iPadViewDistance == nil then _G.Mod_iPadViewDistance = 90 end -- 90-140 slider
 
 local require = require
@@ -1223,9 +1223,9 @@ local function ESPTick()
                         local fSize = GetNameFontSize(distM)
 
     -- 1. Lấy Mesh của kẻ địch để truy xuất tọa độ xương
-                        local meshc = tPawn.Mesh or (tPawn.getAvatarComponent2 and tPawn:getAvatarComponent2())
+                        local mesh = tPawn.Mesh or (tPawn.getAvatarComponent2 and tPawn:getAvatarComponent2())
     
-                        if slua.isValid(meshc) then
+                        if slua.isValid(mesh) then
                             -- Danh sách xương bạn đã khai báo trước đó
                             local boneList = {
                                 "head", "neck_01", "spine_01", "spine_02", "spine_03", "pelvis",
@@ -1239,10 +1239,10 @@ local function ESPTick()
             
             -- Thử lấy tọa độ bằng GetBoneLocation hoặc GetSocketLocation tùy framework game
                                 pcall(function()
-                                    if meshc.GetBoneLocation then
-                                        boneLocation = meshc:GetBoneLocation(boneName)
-                                    elseif meshc.GetSocketLocation then
-                                        boneLocation = meshc:GetSocketLocation(boneName)
+                                    if mesh.GetBoneLocation then
+                                        boneLocation = mesh:GetBoneLocation(boneName)
+                                    elseif mesh.GetSocketLocation then
+                                        boneLocation = mesh:GetSocketLocation(boneName)
                                     end
                                 end)
 
@@ -1785,7 +1785,7 @@ pcall(function()
                 {
                     Key = "ESPSKELETON",
                     UI = AliasMap.Switcher,
-                    Text = "Esp Xương",
+                    Text = "Esp Xương (Bảo Trì)",
                     GetFunc = function() return _G.Mod_ESP_Skeleton or false end,
                     SetFunc = function(_, value)
                         _G.Mod_ESP_Skeleton = value
