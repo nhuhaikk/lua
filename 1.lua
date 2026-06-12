@@ -38,6 +38,9 @@ if _G.Mod_iPadView_Enabled == nil then _G.Mod_iPadView_Enabled = false end
 -- Slider values for fine-tuning
 if _G.Mod_AimbotStrength == nil then _G.Mod_AimbotStrength = 50 end -- 0-100 slider
 if _G.Mod_Aimbot_Fov == nil then _G.Mod_Aimbot_Fov = 50 end -- 0-100 slider
+if _G.Mod_MagicHead == nil then _G.Mod_MagicHead = 0 end -- 0-100 slider
+if _G.Mod_MagicBody == nil then _G.Mod_MagicBody = 0 end -- 0-100 slider
+if _G.Mod_MagicLess == nil then _G.Mod_MagicLess = 0 end -- 0-100 slider
 if _G.Mod_iPadViewDistance == nil then _G.Mod_iPadViewDistance = 90 end -- 90-140 slider
 
 local require = require
@@ -1217,19 +1220,45 @@ local function ESPTick()
                         local isVisible = Game:IsTargetPosVisible(myEyePos, headLoc, {player})
                         local color = isVisible and {R=0,G=255,B=0,A=255} or {R=255,G=0,B=0,A=255}
                         
-                        local bodyZ = GetEnemyPoseOffset(tPawn)
                         local fSize = GetNameFontSize(distM)
 
-                        HUD:AddDebugText("●", tPawn, 1, {X=0, Y=0, Z=90+bodyZ}, {X=0, Y=0, Z=90+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText(".︎", tPawn, 1, {X=0, Y=0, Z=65+bodyZ}, {X=0, Y=0, Z=65+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText(".︎", tPawn, 1, {X=0, Y=-20, Z=55+bodyZ}, {X=0, Y=-20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText(".︎", tPawn, 1, {X=0, Y=20, Z=55+bodyZ}, {X=0, Y=20, Z=55+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText(".︎", tPawn, 1, {X=0, Y=0, Z=30+bodyZ}, {X=0, Y=0, Z=30+bodyZ}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText(".", tPawn, 1, {X=0, Y=-20, Z=10}, {X=0, Y=-20, Z=10}, color, true, false, true, nil, fSize, true)
-                        HUD:AddDebugText(".︎", tPawn, 1, {X=0, Y=20, Z=10}, {X=0, Y=20, Z=10}, color, true, false, true, nil, fSize, true)
-                        
+    -- 1. Lấy Mesh của kẻ địch để truy xuất tọa độ xương
+                        local mesh = tPawn.Mesh or (tPawn.getAvatarComponent2 and tPawn:getAvatarComponent2())
+    
+                        if slua.isValid(mesh) then
+                            -- Danh sách xương bạn đã khai báo trước đó
+                            local boneList = {
+                                "head", "neck_01", "spine_01", "spine_02", "spine_03", "pelvis",
+                                "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r",
+                                "calf_l", "calf_r", "foot_l", "foot_r"
+                            }
+
+                            -- 2. Duyệt qua từng xương để vẽ chấm tròn "●" lên HUD
+                            for _, boneName in ipairs(boneList) do
+                                local boneLocation = nil
+            
+            -- Thử lấy tọa độ bằng GetBoneLocation hoặc GetSocketLocation tùy framework game
+                                pcall(function()
+                                    if mesh.GetBoneLocation then
+                                        boneLocation = mesh:GetBoneLocation(boneName)
+                                    elseif mesh.GetSocketLocation then
+                                        boneLocation = mesh:GetSocketLocation(boneName)
+                                    end
+                                end)
+
+            -- Nếu tìm thấy tọa độ xương hợp lệ thì vẽ lên màn hình
+                                if boneLocation then
+                                    pcall(function()
+                                        HUD:AddDebugText("●", tPawn, 1, boneLocation, boneLocation, color, true, false, true, nil, fSize - 2, true)
+                                    end)
+                                end
+                            end
+                        end
+    
+    -- 3. Hiển thị khoảng cách (Mét) dưới chân kẻ địch như cũ
                         HUD:AddDebugText(string.format("%.0fm", distM), tPawn, 0.3, {X=0, Y=0, Z=-95}, {X=0, Y=0, Z=-95}, {R=255,G=255,B=255,A=255}, true, false, true, nil, fSize, true)
                     end
+
                     ---------------------------------------------------------
                     -- 2. VẼ THANH MÁU (HP) - TÁCH RIÊNG
                     ---------------------------------------------------------
@@ -1395,11 +1424,11 @@ _G.EnableiPadViewUI = function()
   pcall(function()
     local sc = require("client.logic.setting.setting_config")
     if sc then
-      if sc.TpViewValue then sc.TpViewValue.max = 140 end
-      if sc.FpViewValue then sc.FpViewValue.max = 140 end
+      if sc.TpViewValue then sc.TpViewValue.max = 90 end
+      if sc.FpViewValue then sc.FpViewValue.max = 90 end
     end
     local db = require("client.slua.umg.NewSetting.GraphicsNew.GraphicSettingDB")
-    if db and db.TpViewValue then db.TpViewValue.max = 140 end
+    if db and db.TpViewValue then db.TpViewValue.max = 90 end
   end)
 end
 
@@ -1470,16 +1499,28 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
                 _G._MBones = _G._MBones or {}
                 local assetName = (physAsset.GetName and physAsset:GetName()) or tostring(physAsset)
                 if not _G._MBones[assetName] then
+                  local nhMagicSTHead = 1.0 + (_G.Mod_MagicHead / 100.0)
+                  local nhMagicSTBody = 1.0 + (_G.Mod_MagicBody / 100.0)
+                  local nhMagicSTLess = 1.0 + (_G.Mod_MagicLess / 100.0)
+
                   local mb = {
-                    ["head"]=93, ["neck_01"]=93, ["pelvis"]=93,
-                    ["spine_01"]=93, ["spine_02"]=93, ["spine_03"]=93,
-                    ["upperarm_l"]=93, ["upperarm_r"]=93,
-                    ["lowerarm_l"]=93, ["lowerarm_r"]=93,
-                    ["hand_l"]=93, ["hand_r"]=93,
-                    ["thigh_l"]=93, ["thigh_r"]=93,
-                    ["calf_l"]=93, ["calf_r"]=93,
-                    ["foot_l"]=93, ["foot_r"]=93,
+                    ["head"] = nhMagicSTHead,
+                    ["pelvis"] = nhMagicSTBody,
+                    ["spineBone03"] = nhMagicSTBody,
+                    ["thigh_l"] = nhMagicSTLess, ["thigh_r"] = nhMagicSTLess,
+                    ["calf_l"] = nhMagicSTLess, ["calf_r"] = nhMagicSTLess,   
+                    ["foot_l"] = nhMagicSTLess, ["foot_r"] = nhMagicSTLess    
                   }
+                  --local mb = {
+                    --["head"]=93, ["neck_01"]=93, ["pelvis"]=93,
+                    --["spine_01"]=93, ["spine_02"]=93, ["spine_03"]=93,
+                    --["upperarm_l"]=93, ["upperarm_r"]=93,
+                    --["lowerarm_l"]=93, ["lowerarm_r"]=93,
+                    --["hand_l"]=93, ["hand_r"]=93,
+                    --["thigh_l"]=93, ["thigh_r"]=93,
+                    --["calf_l"]=93, ["calf_r"]=93,
+                    --["foot_l"]=93, ["foot_r"]=93,
+                  --}
                   local setups = physAsset.SkeletalBodySetups
                   for i = 1, 80 do
                     local bs = nil
@@ -1837,6 +1878,57 @@ pcall(function()
                         _G.Mod_Aimbot_Fov = math.floor(value)
                         -- Dòng print này để bạn kiểm tra trong console
                         print("[MOD] Aimbot Fov: " .. _G.Mod_Aimbot_Fov)
+                        return true
+                    end
+                },
+                {
+                    Key = "ModMenu_MagicHead",
+                    UI = AliasMap.Slider,
+                    Text = "Magic Đầu",
+                    Min = 0,
+                    Max = 100,
+                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
+                    GetFunc = function() 
+                        return _G.Mod_MagicHead or 50
+                    end,
+                    SetFunc = function(_, value)
+                        _G.Mod_MagicHead = math.floor(value)
+                        -- Dòng print này để bạn kiểm tra trong console
+                        print("[MOD] Magic Đầu: " .. _G.Mod_MagicHead)
+                        return true
+                    end
+                },
+                {
+                    Key = "ModMenu_MagicBody",
+                    UI = AliasMap.Slider,
+                    Text = "Magic Thân Trên",
+                    Min = 0,
+                    Max = 100,
+                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
+                    GetFunc = function() 
+                        return _G.Mod_MagicBody or 50
+                    end,
+                    SetFunc = function(_, value)
+                        _G.Mod_MagicBody = math.floor(value)
+                        -- Dòng print này để bạn kiểm tra trong console
+                        print("[MOD] Magic Thân Trên: " .. _G.Mod_MagicBody)
+                        return true
+                    end
+                },
+                {
+                    Key = "ModMenu_MagicLess",
+                    UI = AliasMap.Slider,
+                    Text = "Magic Thân Dưới",
+                    Min = 0,
+                    Max = 100,
+                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
+                    GetFunc = function() 
+                        return _G.Mod_MagicLess or 50
+                    end,
+                    SetFunc = function(_, value)
+                        _G.Mod_MagicLess = math.floor(value)
+                        -- Dòng print này để bạn kiểm tra trong console
+                        print("[MOD] Magic Thân Dưới: " .. _G.Mod_MagicLess)
                         return true
                     end
                 }
