@@ -1223,9 +1223,9 @@ local function ESPTick()
                         local fSize = GetNameFontSize(distM)
 
     -- 1. Lấy Mesh của kẻ địch để truy xuất tọa độ xương
-                        local mesh = tPawn.Mesh or (tPawn.getAvatarComponent2 and tPawn:getAvatarComponent2())
+                        local meshc = tPawn.Mesh or (tPawn.getAvatarComponent2 and tPawn:getAvatarComponent2())
     
-                        if slua.isValid(mesh) then
+                        if slua.isValid(meshc) then
                             -- Danh sách xương bạn đã khai báo trước đó
                             local boneList = {
                                 "head", "neck_01", "spine_01", "spine_02", "spine_03", "pelvis",
@@ -1239,10 +1239,10 @@ local function ESPTick()
             
             -- Thử lấy tọa độ bằng GetBoneLocation hoặc GetSocketLocation tùy framework game
                                 pcall(function()
-                                    if mesh.GetBoneLocation then
-                                        boneLocation = mesh:GetBoneLocation(boneName)
-                                    elseif mesh.GetSocketLocation then
-                                        boneLocation = mesh:GetSocketLocation(boneName)
+                                    if meshc.GetBoneLocation then
+                                        boneLocation = meshc:GetBoneLocation(boneName)
+                                    elseif meshc.GetSocketLocation then
+                                        boneLocation = meshc:GetSocketLocation(boneName)
                                     end
                                 end)
 
@@ -1254,9 +1254,6 @@ local function ESPTick()
                                 end
                             end
                         end
-    
-    -- 3. Hiển thị khoảng cách (Mét) dưới chân kẻ địch như cũ
-                        HUD:AddDebugText(string.format("%.0fm", distM), tPawn, 0.3, {X=0, Y=0, Z=-95}, {X=0, Y=0, Z=-95}, {R=255,G=255,B=255,A=255}, true, false, true, nil, fSize, true)
                     end
 
                     ---------------------------------------------------------
