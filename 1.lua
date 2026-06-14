@@ -1075,7 +1075,6 @@ local function StartMainTimer()
 end
 
 -- ==================== INITIALIZATION ====================
-local M = {}
 
 function M.OnBeginPlay(self)
     _G.InitModMenuTab()
@@ -1086,5 +1085,3 @@ function M.OnBeginPlay(self)
     _G.BypassHiggsComponent()
     StartMainTimer()
 end
-
-return M
