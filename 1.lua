@@ -1900,9 +1900,9 @@ pcall(function()
                     UI = AliasMap.TitleSwitcher,
                     Text = " AUTO AIM",
                     ExpandIndex = 0,
-                    GetFunc = function() return _G.nhhaiConfig.EnableAutoAim end,
-                    SetFunc = function(c, v) 
-                        _G.nhhaiConfig.EnableAutoAim = v
+                    GetFunc = function() return _G.nhhaiConfig.EnableAutoAim or false end,
+                    SetFunc = function(_, value)
+                        _G.nhhaiConfig.EnableAutoAim = value
                         _G.ApplyAutoAim()
                         return true 
                     end
@@ -1983,10 +1983,10 @@ pcall(function()
                     UI = AliasMap.TitleSwitcher,
                     Text = "Magic Bullet",
                     ExpandIndex = 0,
-                    GetFunc = function() return _G.nhhaiConfig.EnableMagicbullet end,
-                    SetFunc = function(c, v) 
-                        _G.nhhaiConfig.EnableMagicbullet = v
-                        return true 
+                    GetFunc = function() return _G.nhhaiConfig.EnableMagicbullet or false end,
+                    SetFunc = function(_, value)
+                        _G.nhhaiConfig.EnableMagicbullet = value
+                        return true
                     end
                 },
                 {
