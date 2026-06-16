@@ -1,3 +1,38 @@
+local BRPlayerCharacterBase = {
+  ServerRPC = {},
+  ClientRPC = {},
+  MulticastRPC = {}
+}
+
+BRPlayerCharacterBase.ServerRPC.ServerRPC_NearDeathGiveupRescue = {
+  Reliable = true,
+  Params = {}
+}
+BRPlayerCharacterBase.ServerRPC.ServerRPC_CarryDeadBox = {
+  Reliable = true,
+  Params = {
+    UEnums.EPropertyClass.Object
+  }
+}
+BRPlayerCharacterBase.ServerRPC.RPC_Server_GmPlayAction = {
+  Reliable = true,
+  Params = {
+    UEnums.EPropertyClass.Int
+  }
+}
+BRPlayerCharacterBase.MulticastRPC.MulticastRPC_GmPlayAction = {
+  Reliable = true,
+  Params = {
+    UEnums.EPropertyClass.Int
+  }
+}
+BRPlayerCharacterBase.ClientRPC.RPC_Client_SetShouldCheckPassWall = {
+  Reliable = true,
+  Params = {
+    UEnums.EPropertyClass.Bool
+  }
+}
+
 do
     local pc = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
     if _G._MOD_LOADED and _G._MOD_PC == pc then return end
@@ -5,6 +40,7 @@ do
     _G._MOD_PC = pc
 end
 
+-- Initialize bypass state ASAP
 if not _G.BYPASS_STATE then
     _G.BYPASS_STATE = {
         DEADEYE_DISABLED = false,
@@ -41,6 +77,8 @@ _G.nhhaiConfig = _G.nhhaiConfig or {
     MagicLess = 40,
     iPadViewDistance = 90,
 }
+
+_G.nhhaiState = _G.nhhaiState or {}
 
 
 local require = require
@@ -1488,7 +1526,7 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
           local gi = logic_setting_graphics.GetGameInstance()
           if not gi then return end
 
-          if _G.nhhaiConfig.BlackSky then
+          if _G.._G.nhhaiConfig.BlackSky then
               gi:ExecuteCMD("r.CylinderMaxDrawHeight", "9999")
           else
               gi:ExecuteCMD("r.CylinderMaxDrawHeight", "0")
@@ -1632,7 +1670,7 @@ local function ApplyHardAimbot()
                     shootComp.AutoAimingConfig.InnerRange.CrouchRate = 1.0
                     shootComp.AutoAimingConfig.InnerRange.ProneRate = 1.0
                 end
-                --shootComp.AutoAimingConfig = shootComp.AutoAimingConfig
+                shootComp.AutoAimingConfig = shootComp.AutoAimingConfig
             end
         end
     end)
@@ -2021,9 +2059,10 @@ pcall(function()
                                 local logic_setting_graphics = require("client.slua.logic.setting.logic_setting_graphics")
                                 local gi = logic_setting_graphics.GetGameInstance()
                                 if gi then 
-                                    -- Nếu value là true thì set 9999, ngược lại thì set 0
-                                    local cmdValue = value and "9999" or "0"
-                                    gi:ExecuteCMD("r.CylinderMaxDrawHeight", cmdValue)
+                                    gi:ExecuteCMD("r.CylinderMaxDrawHeight", "9999")
+                                else
+                                    gi:ExecuteCMD("r.CylinderMaxDrawHeight", "0")
+                                end
                             end)
                         end
                         return true
