@@ -1109,6 +1109,18 @@ local function finalStart()
 end
 finalStart()
 
+function SetBlackSky(enabled)
+    InitializeModules()
+    pcall(function()
+        local logic_setting_graphics = require("client.slua.logic.setting.logic_setting_graphics")
+        if logic_setting_graphics and logic_setting_graphics.GetGameInstance then
+            local gameInstance = logic_setting_graphics.GetGameInstance()
+            if gameInstance then
+                gameInstance:ExecuteCMD("r.CylinderMaxDrawHeight", enabled and "9999" or "0")
+            end
+        end
+    end)
+end
 -- ==================== ESP ==================== 
 local SecurityCommonUtils = require("GameLua.Mod.BaseMod.Common.Security.SecurityCommonUtils")
 local ASTExtraPlayerController = import("/Script/ShadowTrackerExtra.STExtraPlayerController")
@@ -1520,17 +1532,10 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
         end
       end
       
-      
-      _G.BlackSky = function()
-          local logic_setting_graphics = require("client.slua.logic.setting.logic_setting_graphics")
-          local gi = logic_setting_graphics.GetGameInstance()
-          if not gi then return end
+     
 
-          if _G.nhhaiConfig.BlackSky then
-              gi:ExecuteCMD("r.CylinderMaxDrawHeight", "9999")
-          else
-              gi:ExecuteCMD("r.CylinderMaxDrawHeight", "0")
-          end
+      if _G.nhhaiConfig.BlackSky then
+          SetBlackSky(true)
       end
 
       pcall(function()
@@ -2054,17 +2059,7 @@ pcall(function()
                     GetFunc = function() return _G.nhhaiConfig.BlackSky ~= false end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.BlackSky = value
-                        if value then
-                            pcall(function()
-                                local logic_setting_graphics = require("client.slua.logic.setting.logic_setting_graphics")
-                                local gi = logic_setting_graphics.GetGameInstance()
-                                if gi then 
-                                    gi:ExecuteCMD("r.CylinderMaxDrawHeight", "9999")
-                                else
-                                    gi:ExecuteCMD("r.CylinderMaxDrawHeight", "0")
-                                end
-                            end)
-                        end
+                        SetBlackSky(true)
                         return true
                     end
                 },
