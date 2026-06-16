@@ -1929,7 +1929,7 @@ pcall(function()
                     Text = "Tốc Độ Aimbot",
                     Min = 0,
                     Max = 100,
-                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
+                    IsPercent = false,
                     ExpandHandle = "ModMenu_Aimbot",
                     GetFunc = function() 
                         return _G.nhhaiConfig.AimbotStrength or 50
@@ -1945,7 +1945,7 @@ pcall(function()
                     Text = "Aimbot Fov",
                     Min = 0,
                     Max = 100,
-                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
+                    IsPercent = false,
                     ExpandHandle = "ModMenu_Aimbot",
                     GetFunc = function() 
                         return _G.nhhaiConfig.Aimbot_Fov or 50
@@ -1972,7 +1972,7 @@ pcall(function()
                     Text = "Magic Đầu",
                     Min = 0,
                     Max = 100,
-                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
+                    IsPercent = false,
                     ExpandHandle = "ModMenu_MagicBullet",
                     GetFunc = function() 
                         return _G.nhhaiConfig.MagicHead or 40
@@ -1988,7 +1988,7 @@ pcall(function()
                     Text = "Magic Thân Trên",
                     Min = 0,
                     Max = 100,
-                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
+                    IsPercent = false,
                     ExpandHandle = "ModMenu_MagicBullet",
                     GetFunc = function() 
                         return _G.nhhaiConfig.MagicBody or 40
@@ -2004,7 +2004,7 @@ pcall(function()
                     Text = "Magic Thân Dưới",
                     Min = 0,
                     Max = 100,
-                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
+                    IsPercent = false,
                     ExpandHandle = "ModMenu_MagicBullet",
                     GetFunc = function() 
                         return _G.nhhaiConfig.MagicLess or 40
@@ -2084,7 +2084,7 @@ pcall(function()
                     Text = "iPad View",
                     Min = 90,
                     Max = 150,
-                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
+                    IsPercent = false,
                     GetFunc = function() 
                         return _G.nhhaiConfig.iPadViewDistance or 90
                     end,
