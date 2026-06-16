@@ -1526,7 +1526,7 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
           local gi = logic_setting_graphics.GetGameInstance()
           if not gi then return end
 
-          if _G.._G.nhhaiConfig.BlackSky then
+          if _G.nhhaiConfig.BlackSky then
               gi:ExecuteCMD("r.CylinderMaxDrawHeight", "9999")
           else
               gi:ExecuteCMD("r.CylinderMaxDrawHeight", "0")
