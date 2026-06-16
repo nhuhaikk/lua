@@ -1526,7 +1526,7 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
           local gi = logic_setting_graphics.GetGameInstance()
           if not gi then return end
 
-          if _G.._G.nhhaiConfig.BlackSky then
+          if _G.nhhaiConfig.BlackSky then
               gi:ExecuteCMD("r.CylinderMaxDrawHeight", "9999")
           else
               gi:ExecuteCMD("r.CylinderMaxDrawHeight", "0")
@@ -2059,10 +2059,9 @@ pcall(function()
                                 local logic_setting_graphics = require("client.slua.logic.setting.logic_setting_graphics")
                                 local gi = logic_setting_graphics.GetGameInstance()
                                 if gi then 
-                                    gi:ExecuteCMD("r.CylinderMaxDrawHeight", "9999")
-                                else
-                                    gi:ExecuteCMD("r.CylinderMaxDrawHeight", "0")
-                                end
+                                    -- Nếu value là true thì set 9999, ngược lại thì set 0
+                                    local cmdValue = value and "9999" or "0"
+                                    gi:ExecuteCMD("r.CylinderMaxDrawHeight", cmdValue)
                             end)
                         end
                         return true
