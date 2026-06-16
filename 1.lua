@@ -1,3 +1,12 @@
+-- Per-match guard: allow re-init when the player controller changes (new match)
+do
+    local pc = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
+    if _G._MOD_LOADED and _G._MOD_PC == pc then return end
+    _G._MOD_LOADED = true
+    _G._MOD_PC = pc
+end
+
+-- Initialize bypass state ASAP
 if not _G.BYPASS_STATE then
     _G.BYPASS_STATE = {
         DEADEYE_DISABLED = false,
@@ -12,31 +21,16 @@ if not _G.BYPASS_STATE then
     }
 end
 
-_G.nhhaiConfig = _G.nhhaiConfig or {
-    EnableAutoAim = false,
-    EnableMagicbullet =false,
-    AimbotStrength = 50,
-    Aimbot_Fov = 50,
-    EnableEsp = false,
-    EnableVisColor = false,
-    AutoAimBone = "Head",
-    AimingLevel = "LOW",
-    ShowHP = false,
-    ShowName = false,
-    ShowDist = false,
-    Skeleton = false,
-    FPS165_Enabled = false,
-    NoGrass_Enabled = false,
-    iPadView_Enabled = false,
-    Blacksky = false,
-    MagicHead = 40,
-    MagicBody = 40,
-    MagicLess = 40,
-    iPadViewDistance = 90,
-}
+-- Initialize feature toggles with defaults
+if not _G.Mod_Aimbot_Enabled then _G.Mod_Aimbot_Enabled = false end
+if not _G.Mod_ESP_Enabled then _G.Mod_ESP_Enabled = false end
+if _G.Mod_FPS165_Enabled == nil then _G.Mod_FPS165_Enabled = true end
+if _G.Mod_NoGrass_Enabled == nil then _G.Mod_NoGrass_Enabled = true end
+if _G.Mod_iPadView_Enabled == nil then _G.Mod_iPadView_Enabled = false end
 
-_G.nhhaiState = _G.nhhaiState or {}
-
+-- Slider values for fine-tuning
+if _G.Mod_AimbotStrength == nil then _G.Mod_AimbotStrength = 50 end -- 0-100 slider
+if _G.Mod_iPadViewDistance == nil then _G.Mod_iPadViewDistance = 90 end -- 80-140 slider
 
 local require = require
 local import  = import
@@ -1080,23 +1074,6 @@ local function IsPawnAlive(p)
     return p.GetHealth and (p:GetHealth() or 0) > 0 or false
 end
 
-local function GetEnemyPoseOffset(enemy)
-    local pose = 0
-    if enemy.PoseState then pose = enemy.PoseState
-    elseif enemy.GetPoseState then pose = enemy:GetPoseState() end
-    if pose == 1 then return -30, 50 -- Ngồi
-    elseif pose == 2 then return -60, 20 -- Nằm
-    end
-    return 0, 80 -- Đứng
-end
-
-local function GetNameFontSize(distM)
-    local maxDist = 350
-    if distM >= maxDist then return 0.38 end
-    local t = (distM / maxDist)
-    return 1.0 - (0.62 * t * t)
-end
-
 local boneList = {"head","neck_01","spine_01","spine_02","spine_03","pelvis",
     "upperarm_l","upperarm_r","lowerarm_l","lowerarm_r","hand_l","hand_r",
     "calf_l","calf_r","foot_l","foot_r"}
@@ -1114,7 +1091,7 @@ end
 
 local function ESPTick()
     if not _G.CheatsEnabled then return end
-    if _G.nhhaiConfig.EnableEsp == false then return end
+    if _G.Mod_ESP_Enabled == false then return end
     if _G._ESPTimerHandle and _G._ESPTimerChar and not isValid(_G._ESPTimerChar) then _G._ESPTimerHandle = nil; _G._ESPTimerChar = nil end
     local uCon = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
     if not (isValid(uCon) and Game:IsClassOf(uCon, ASTExtraPlayerController)) then return end
@@ -1170,7 +1147,6 @@ local function ESPTick()
                     local name = tPawn.PlayerName or "UNKNOWN"
                     local distM = dist / 100
 
-                    -- [Logic tính toán HP giữ nguyên]
                     local hp = tPawn.Health
                     local maxHp = tPawn.HealthMax
                     local isKnock = false
@@ -1182,127 +1158,80 @@ local function ESPTick()
                     else
                         hpPercent = hp / maxHp
                     end
-                    
                     local hpColor = {R=0,G=255,B=0,A=255}
-                    if hpPercent < 0.3 then hpColor = {R=255,G=0,B=0,A=255}
-                    elseif hpPercent < 0.7 then hpColor = {R=255,G=255,B=0,A=255} end
-                    if isKnock then hpColor = {R=255,G=0,B=0,A=255} end
+                    if hpPercent < 0.3 then
+                        hpColor = {R=255,G=0,B=0,A=255}
+                    elseif hpPercent < 0.7 then
+                        hpColor = {R=255,G=255,B=0,A=255}
+                    end
+                    if isKnock then
+                        hpColor = {R=255,G=0,B=0,A=255}
+                    end
 
-                    -- [Logic tính toán Bone/Vị trí giữ nguyên]
                     local bones = {}
                     local mesh = tPawn.Mesh
                     if isValid(mesh) then
-                        for _, bn in ipairs(boneList) do bones[bn] = mesh:GetSocketLocation(bn) end
+                        for _, bn in ipairs(boneList) do
+                            bones[bn] = mesh:GetSocketLocation(bn)
+                        end
                     end
                     local origin = enemyPos
                     local oz = origin.Z
                     local headPos = bones["head"]
+                    local footPos = bones["foot_l"]
+                    local footRPos = bones["foot_r"]
+                    local topZ = headPos and (headPos.Z - oz) or 90
+                    local botZ = footPos and math.min(footPos.Z, footRPos and footRPos.Z or footPos.Z) - oz or -85
+
                     local headZ = headPos and (headPos.Z - oz) or 90
                     local hpOffset = headZ + 70 + math.min(distM, 60) * 3 + math.max(0, distM - 60) * 0.5
                     local nameOffset = -80 - math.min(distM, 60) * 0.33 - math.max(0, distM - 60) * 0.1
 
-                    ---------------------------------------------------------
-                    -- 1. VẼ CHẤM TRÒN (HEAD DOT) - LUÔN HIỆN KHI BẬT ESP
-                    ---------------------------------------------------------
-                    local hz = headPos and (headPos.Z - oz + 15)
-                    if hz then
-                        local headChar = (crowded) and "●" or (distM <= 25 and "❄" or "●")
-                        HUD:AddDebugText(headChar, tPawn, TextScale(distM), {X=0,Y=0,Z=hz}, {X=0,Y=0,Z=hz}, {R=255,G=0,B=0,A=255}, true, false, true, nil, 1.0, true)
-                    end
-
-                    if _G.nhhaiConfig.Skeleton then
-                        local headLoc = tPawn:GetHeadLocation(false) or enemyPos
-                        local isVisible = Game:IsTargetPosVisible(myEyePos, headLoc, {player})
-                        local color = isVisible and {R=0,G=255,B=0,A=255} or {R=255,G=0,B=0,A=255}
-                        
-                        local fSize = GetNameFontSize(distM)
-
-    -- 1. Lấy Mesh của kẻ địch để truy xuất tọa độ xương
-                        local mesh = tPawn.Mesh or (tPawn.getAvatarComponent2 and tPawn:getAvatarComponent2())
-    
-                        if slua.isValid(mesh) then
-                            -- Danh sách xương bạn đã khai báo trước đó
-                            local boneList = {
-                                "head", "neck_01", "spine_01", "spine_02", "spine_03", "pelvis",
-                                "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r",
-                                "calf_l", "calf_r", "foot_l", "foot_r"
-                            }
-
-                            -- 2. Duyệt qua từng xương để vẽ chấm tròn "●" lên HUD
-                            for _, boneName in ipairs(boneList) do
-                                local boneLocation = nil
-            
-            -- Thử lấy tọa độ bằng GetBoneLocation hoặc GetSocketLocation tùy framework game
-                                pcall(function()
-                                    if mesh.GetBoneLocation then
-                                        boneLocation = mesh:GetBoneLocation(boneName)
-                                    elseif mesh.GetSocketLocation then
-                                        boneLocation = mesh:GetSocketLocation(boneName)
-                                    end
-                                end)
-
-            -- Nếu tìm thấy tọa độ xương hợp lệ thì vẽ lên màn hình
-                                if boneLocation then
-                                    pcall(function()
-                                        HUD:AddDebugText("●", tPawn, 1, boneLocation, boneLocation, color, true, false, true, nil, fSize - 2, true)
-                                    end)
-                                end
-                            end
-                        end
-                    end
-
-                    ---------------------------------------------------------
-                    -- 2. VẼ THANH MÁU (HP) - TÁCH RIÊNG
-                    ---------------------------------------------------------
-                    if _G.nhhaiConfig.ShowHP then
+                    if crowded then
+                        local hz = headPos and (headPos.Z - oz + 15)
+                        if hz then HUD:AddDebugText("●", tPawn, TextScale(distM), {X=0,Y=0,Z=hz}, {X=0,Y=0,Z=hz}, {R=255,G=0,B=0,A=255}, true, false, true, nil, 1.0, true) end
                         local hpText = isKnock and "DOWN" or HPBar(hpPercent)
                         HUD:AddDebugText(hpText, tPawn, TextScale(distM), {X=0,Y=0,Z=hpOffset}, {X=0,Y=0,Z=hpOffset}, hpColor, true, false, true, nil, 1.0, true)
-                    end
-
-                    ---------------------------------------------------------
-                    -- 3. VẼ TÊN VÀ KHOẢNG CÁCH - TÁCH RIÊNG
-                    ---------------------------------------------------------
-                    if crowded then
-                        _G.nhhaiConfig.ShowHP = false
                     else
-                        -- Xử lý chuỗi hiển thị dựa trên nút bật/tắt
-                        local finalStr = ""
-                        local namePart = _G.nhhaiConfig.ShowName and name or ""
-                        local distPart = _G.nhhaiConfig.ShowDist and string.format("[%.0fm]", distM) or ""
+                        local hz = headPos and (headPos.Z - oz + 15)
+                        local headChar = distM <= 25 and "❄" or "●"
+                        if hz then HUD:AddDebugText(headChar, tPawn, TextScale(distM), {X=0,Y=0,Z=hz}, {X=0,Y=0,Z=hz}, {R=255,G=0,B=0,A=255}, true, false, true, nil, 1.0, true) end
 
-                        if namePart ~= "" and distPart ~= "" then
-                            finalStr = distPart .. " " .. namePart
-                        else
-                            finalStr = distPart .. namePart -- Một trong hai cái trống
-                        end
-                        -- Chỉ vẽ nếu có ít nhất 1 trong 2 cái được bật
-                        if finalStr ~= "" then
-                            local nameColor = {R=0,G=255,B=0,A=255}
-                            local targetPos = headPos or tPawn:K2_GetActorLocation()
-                            pcall(function()
-                                if _G.nhhaiConfig.EnableVisColor then
-                                    if Game:IsTargetPosVisible(myEyePos, targetPos, {currentPawn}) then
-                                        nameColor = {R=0,G=255,B=0,A=255} -- Nhìn thấy (Xanh)
-                                    else
-                                        nameColor = {R=255,G=0,B=0,A=255} -- Bị che (Đỏ)
-                                    end
+                        local hpText = isKnock and "DOWN" or HPBar(hpPercent)
+                        HUD:AddDebugText(hpText, tPawn, TextScale(distM), {X=0,Y=0,Z=hpOffset}, {X=0,Y=0,Z=hpOffset}, hpColor, true, false, true, nil, 1.0, true)
+
+                        local nameColor = {R=0,G=255,B=0,A=255}
+                        local targetPos = headPos or tPawn:K2_GetActorLocation()
+                        pcall(function()
+                            if Game:IsTargetPosVisible(myEyePos, targetPos, {currentPawn}) then
+                                -- Visible: Use GREEN color if enabled
+                                if _G.Mod_Chams_GreenEnabled then
+                                    nameColor = _G.Mod_Chams_GreenRGB or {R=0,G=255,B=0,A=255}
                                 else
-                                    nameColor = {R=255, G=255, B=255, A=255}
+                                    nameColor = {R=0,G=255,B=0,A=255}
                                 end
-                            end)
+                            else
+                                -- Hidden: Use YELLOW color if enabled
+                                if _G.Mod_Chams_YellowEnabled then
+                                    nameColor = _G.Mod_Chams_YellowRGB or {R=255,G=255,B=0,A=255}
+                                else
+                                    nameColor = {R=255,G=255,B=0,A=255}
+                                end
+                            end
+                        end)
 
-                            HUD:AddDebugText(finalStr, tPawn, TextScale(distM), {X=0,Y=0,Z=nameOffset}, {X=0,Y=0,Z=nameOffset}, nameColor, true, false, true, nil, 1.0, true)
-                        end
+                        HUD:AddDebugText(string.format("[%.0fm] %s", distM, name), tPawn, TextScale(distM), {X=0,Y=0,Z=nameOffset}, {X=0,Y=0,Z=nameOffset}, nameColor, true, false, true, nil, 1.0, true)
+
                     end
+                    pcall(ApplyWallHack, currentPawn, tPawn, uCon)
                 end
             end
         end
     end
-    if totalAlive > 0 then
-        if not crowded and HUD and currentPawn then
-            HUD:AddDebugText(string.format("BOT : %d     PLAYER : %d", botCount, playerCount), currentPawn, 1, {X=0,Y=0,Z=170}, {X=0,Y=0,Z=170}, {R=255,G=255,B=255,A=255}, true, false, true, nil, 1.0, true)
-            HUD:AddDebugText("Anh Hai Dep Trai", currentPawn, 1, {X=0,Y=0,Z=145}, {X=0,Y=0,Z=145}, {R=255,G=200,B=0,A=255}, true, false, true, nil, 1.0, true)
-        end
+
+    if not crowded and HUD and currentPawn then
+        HUD:AddDebugText(string.format("BOT : %d     PLAYER : %d", botCount, playerCount), currentPawn, 1, {X=0,Y=0,Z=170}, {X=0,Y=0,Z=170}, {R=255,G=255,B=255,A=255}, true, false, true, nil, 1.0, true)
+        HUD:AddDebugText("happy cheating", currentPawn, 1, {X=0,Y=0,Z=145}, {X=0,Y=0,Z=145}, {R=255,G=200,B=0,A=255}, true, false, true, nil, 1.0, true)
     end
 end
 
@@ -1346,7 +1275,7 @@ _G.Enable165FPSLogic = function()
       local orig = graphics.SetFPS
       function graphics:SetFPS(lvl)
         if orig then orig(self, lvl) end
-        if lvl == 8 and _G.nhhaiConfig.FPS165_Enabled ~= false then 
+        if lvl == 8 and _G.Mod_FPS165_Enabled ~= false then 
           self:ExecuteCMD("t.MaxFPS", "165")
           self:ExecuteCMD("r.FrameRateLimit", "165")
         end
@@ -1416,16 +1345,16 @@ _G.EnableiPadViewUI = function()
   pcall(function()
     local sc = require("client.logic.setting.setting_config")
     if sc then
-      if sc.TpViewValue then sc.TpViewValue.max = 90 end
-      if sc.FpViewValue then sc.FpViewValue.max = 90 end
+      if sc.TpViewValue then sc.TpViewValue.max = 140 end
+      if sc.FpViewValue then sc.FpViewValue.max = 140 end
     end
     local db = require("client.slua.umg.NewSetting.GraphicsNew.GraphicSettingDB")
-    if db and db.TpViewValue then db.TpViewValue.max = 90 end
+    if db and db.TpViewValue then db.TpViewValue.max = 140 end
   end)
 end
 
-if _G.nhhaiConfig.FPS165_Enabled ~= false then _G.Enable165FPSLogic() end
-if _G.nhhaiConfig.iPadView_Enabled ~= false then _G.EnableiPadViewUI() end
+if _G.Mod_FPS165_Enabled ~= false then _G.Enable165FPSLogic() end
+if _G.Mod_iPadView_Enabled ~= false then _G.EnableiPadViewUI() end
 
 local pc = slua_GameFrontendHUD:GetPlayerController()
 if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
@@ -1447,14 +1376,14 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
         local SettingSubsystem = SubsystemMgr:Get("SettingSubsystem")
         if SettingSubsystem then
           -- Use mod slider value if enabled, otherwise use game's setting
-          local rawSliderValue = _G.nhhaiConfig.iPadViewDistance or (SettingSubsystem:GetUserSettings_Int("TpViewValue") or 90)
+          local rawSliderValue = _G.Mod_iPadViewDistance or (SettingSubsystem:GetUserSettings_Int("TpViewValue") or 90)
           local targetTPP = rawSliderValue
           if rawSliderValue > 80 and rawSliderValue <= 90 then
               targetTPP = 80 + (rawSliderValue - 80) * 6.0
           elseif rawSliderValue > 90 then
               targetTPP = rawSliderValue
           end
-          if _G.nhhaiConfig.iPadView_Enabled ~= false then
+          if _G.Mod_iPadView_Enabled ~= false then
             local uTPPCam = char.ThirdPersonCameraComponent
             if isValid(uTPPCam) and not char.bIsWeaponAiming then
                 if uTPPCam.FieldOfView ~= targetTPP then
@@ -1471,110 +1400,91 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
         gi = SettingUtil and SettingUtil.GetGameInstance()
       end
       if gi then
-        if _G.nhhaiConfig.NoGrass_Enabled ~= false then
+        if _G.Mod_NoGrass_Enabled ~= false then
           gi:ExecuteCMD("grass.DensityScale", "0")
           gi:ExecuteCMD("grass.DiscardDataOnLoad", "1")
         end
       end
-      
-      
-      _G.BlackSky = function()
-          local logic_setting_graphics = require("client.slua.logic.setting.logic_setting_graphics")
-          local gi = logic_setting_graphics.GetGameInstance()
-          if not gi then return end
-
-          if _G.nhhaiConfig.BlackSky then
-              gi:ExecuteCMD("r.CylinderMaxDrawHeight", "9999")
-          else
-              gi:ExecuteCMD("r.CylinderMaxDrawHeight", "0")
-          end
-      end
 
       pcall(function()
-        if _G.nhhaiConfig.EnableMagicbullet then
-            local allChars = Game:GetAllPlayerPawns() or {}
-            for _, c in pairs(allChars) do
-              if isValid(c) and c ~= char and c.TeamID ~= char.TeamID then
-                local mesh = c.Mesh
-                if isValid(mesh) then
-                  local physAsset = mesh.PhysicsAssetOverride
-                  if not isValid(physAsset) and isValid(mesh.SkeletalMesh) then
-                    physAsset = mesh.SkeletalMesh.PhysicsAsset
-                  end
-                  if isValid(physAsset) and physAsset.SkeletalBodySetups then
-                    _G._MBones = _G._MBones or {}
-                    local assetName = (physAsset.GetName and physAsset:GetName()) or tostring(physAsset)
-                    if not _G._MBones[assetName] then
-                      local nhMagicSTHead = 1 + _G.nhhaiConfig.MagicHead
-                      local nhMagicSTBody = 1 + _G.nhhaiConfig.MagicBody
-                      local nhMagicSTLess = 1 + _G.nhhaiConfig.MagicLess
-
-                      local mb = {
-                        ["head"]=nhMagicSTHead, ["neck_01"]=nhMagicSTHead, ["pelvis"]=nhMagicSTBody,
-                        ["spine_01"]=nhMagicSTBody, ["spine_02"]=nhMagicSTBody, ["spine_03"]=nhMagicSTBody,
-                        ["upperarm_l"]=nhMagicSTBody, ["upperarm_r"]=nhMagicSTBody,
-                        ["lowerarm_l"]=nhMagicSTBody, ["lowerarm_r"]=nhMagicSTBody,
-                        ["hand_l"]=nhMagicSTBody, ["hand_r"]=nhMagicSTBody,
-                        ["thigh_l"]=nhMagicSTLess, ["thigh_r"]=nhMagicSTLess,
-                        ["calf_l"]=nhMagicSTLess, ["calf_r"]=nhMagicSTLess,
-                        ["foot_l"]=nhMagicSTLess, ["foot_r"]=nhMagicSTLess,
-                      }
-                      local setups = physAsset.SkeletalBodySetups
-                      for i = 1, 80 do
-                        local bs = nil
-                        pcall(function() bs = (type(setups.Get)=="function") and setups:Get(i-1) or setups[i] end)
-                        if not bs or not isValid(bs) then break end
-                        local bn = tostring(bs.BoneName):lower()
-                        local pct = nil
-                        for pat, val in pairs(mb) do
-                          if string.find(bn, pat) then pct = val; break end
+        local allChars = Game:GetAllPlayerPawns() or {}
+        for _, c in pairs(allChars) do
+          if isValid(c) and c ~= char and c.TeamID ~= char.TeamID then
+            local mesh = c.Mesh
+            if isValid(mesh) then
+              local physAsset = mesh.PhysicsAssetOverride
+              if not isValid(physAsset) and isValid(mesh.SkeletalMesh) then
+                physAsset = mesh.SkeletalMesh.PhysicsAsset
+              end
+              if isValid(physAsset) and physAsset.SkeletalBodySetups then
+                _G._MBones = _G._MBones or {}
+                local assetName = (physAsset.GetName and physAsset:GetName()) or tostring(physAsset)
+                if not _G._MBones[assetName] then
+                  local mb = {
+                    ["head"]=50, ["neck_01"]=40, ["pelvis"]=40,
+                    ["spine_01"]=40, ["spine_02"]=40, ["spine_03"]=40,
+                    ["upperarm_l"]=30, ["upperarm_r"]=30,
+                    ["lowerarm_l"]=25, ["lowerarm_r"]=25,
+                    ["hand_l"]=20, ["hand_r"]=20,
+                    ["thigh_l"]=30, ["thigh_r"]=30,
+                    ["calf_l"]=25, ["calf_r"]=25,
+                    ["foot_l"]=20, ["foot_r"]=20,
+                  }
+                  local setups = physAsset.SkeletalBodySetups
+                  for i = 1, 80 do
+                    local bs = nil
+                    pcall(function() bs = (type(setups.Get)=="function") and setups:Get(i-1) or setups[i] end)
+                    if not bs or not isValid(bs) then break end
+                    local bn = tostring(bs.BoneName):lower()
+                    local pct = nil
+                    for pat, val in pairs(mb) do
+                      if string.find(bn, pat) then pct = val; break end
+                    end
+                    if pct then
+                      local sc = 1.0 + pct/100.0
+                      local ag = bs.AggGeom
+                      pcall(function()
+                        local bx = (ag and ag.BoxElems) or bs.BoxElems
+                        if bx then
+                          local b = (type(bx.Get)=="function") and bx:Get(0) or bx[1]
+                          if b then
+                            b.X = (b.X or 30)*sc; b.Y = (b.Y or 30)*sc; b.Z = (b.Z or 60)*sc
+                            if type(bx.Set)=="function" then bx:Set(0,b) else bx[1]=b end
+                            if ag then bs.AggGeom=ag else bs.BoxElems=bx end
+                          end
                         end
-                        if pct then
-                          local sc = 1.0 + pct/100.0
-                          local ag = bs.AggGeom
-                          pcall(function()
-                            local bx = (ag and ag.BoxElems) or bs.BoxElems
-                            if bx then
-                              local b = (type(bx.Get)=="function") and bx:Get(0) or bx[1]
-                              if b then
-                                b.X = (b.X or 30)*sc; b.Y = (b.Y or 30)*sc; b.Z = (b.Z or 60)*sc
-                                if type(bx.Set)=="function" then bx:Set(0,b) else bx[1]=b end
-                                if ag then bs.AggGeom=ag else bs.BoxElems=bx end
-                              end
-                            end
-                          end)
-                          pcall(function()
-                            local sp = (ag and ag.SphylElems) or bs.SphylElems
-                            if sp then
-                              local s = (type(sp.Get)=="function") and sp:Get(0) or sp[1]
-                              if s then
-                                if s.Radius then s.Radius=s.Radius*sc end
-                                if s.Length then s.Length=s.Length*sc end
-                                if type(sp.Set)=="function" then sp:Set(0,s) else sp[1]=s end
-                                if ag then bs.AggGeom=ag else bs.SphylElems=sp end
-                              end
-                            end
-                          end)
-                          pcall(function()
-                            local sr = (ag and ag.SphereElems) or bs.SphereElems
-                            if sr then
-                              local r = (type(sr.Get)=="function") and sr:Get(0) or sr[1]
-                              if r and r.Radius then
-                                r.Radius=r.Radius*sc
-                                if type(sr.Set)=="function" then sr:Set(0,r) else sr[1]=r end
-                                if ag then bs.AggGeom=ag else bs.SphereElems=sr end
-                              end
-                            end
-                          end)
+                      end)
+                      pcall(function()
+                        local sp = (ag and ag.SphylElems) or bs.SphylElems
+                        if sp then
+                          local s = (type(sp.Get)=="function") and sp:Get(0) or sp[1]
+                          if s then
+                            if s.Radius then s.Radius=s.Radius*sc end
+                            if s.Length then s.Length=s.Length*sc end
+                            if type(sp.Set)=="function" then sp:Set(0,s) else sp[1]=s end
+                            if ag then bs.AggGeom=ag else bs.SphylElems=sp end
+                          end
                         end
-                      end
-                      _G._MBones[assetName] = true
-                      if mesh.RecreatePhysicsState then mesh:RecreatePhysicsState() end
+                      end)
+                      pcall(function()
+                        local sr = (ag and ag.SphereElems) or bs.SphereElems
+                        if sr then
+                          local r = (type(sr.Get)=="function") and sr:Get(0) or sr[1]
+                          if r and r.Radius then
+                            r.Radius=r.Radius*sc
+                            if type(sr.Set)=="function" then sr:Set(0,r) else sr[1]=r end
+                            if ag then bs.AggGeom=ag else bs.SphereElems=sr end
+                          end
+                        end
+                      end)
                     end
                   end
+                  _G._MBones[assetName] = true
+                  if mesh.RecreatePhysicsState then mesh:RecreatePhysicsState() end
                 end
               end
             end
+          end
         end
       end)
     end)
@@ -1585,51 +1495,87 @@ _G._AimbotCurrentPC = nil
 
 local function ApplyHardAimbot()
     if not _G.CheatsEnabled then return end
-    if _G.nhhaiConfig.EnableAutoAim == false then return end
+    if _G.Mod_Aimbot_Enabled == false then return end
     pcall(function()
-        local pc = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
-        if not slua.isValid(pc) then return end
-        
+        local pc = slua_GameFrontendHUD:GetPlayerController()
+        if not isValid(pc) then return end
+
         local char = pc:GetPlayerCharacterSafety()
-        if not slua.isValid(char) then return end
+        if not isValid(char) then return end
+
+        local wm = char.WeaponManagerComponent
+        if not isValid(wm) then return end
+
+        local weapon = wm.CurrentWeaponReplicated
+        if not isValid(weapon) then return end
+
+        local entity = weapon.ShootWeaponEntityComp
+        if not isValid(entity) then return end
+
+        -- Use slider value to adjust aimbot strength (0-100)
+        local strengthMul = (_G.Mod_AimbotStrength or 50) / 100
         
-        local weaponManager = char:GetWeaponManagerComponent()
-        if not slua.isValid(weaponManager) then return end
-        
-        local currentWeapon = weaponManager.CurrentWeaponReplicated
-        if not slua.isValid(currentWeapon) then return end
-        
-        local shootComp = currentWeapon.ShootWeaponEntityComp
-        if not slua.isValid(shootComp) then return end
-        
-        if _G.nhhaiConfig.EnableAutoAim then
-            local speed_aimbot = _G.nhhaiConfig.AimbotStrength / 10
-            local fov_aimbot = _G.nhhaiConfig.Aimbot_Fov / 10
-                                    
-            local speedScale = 1 + (1 * speed_aimbot)
-            local fovScale = 1.5 + (1 * fov_aimbot)
-            if shootComp.AutoAimingConfig then
-                if shootComp.AutoAimingConfig.OuterRange then
-                    shootComp.AutoAimingConfig.OuterRange.Speed = speedScale
-                    shootComp.AutoAimingConfig.OuterRange.SpeedRate = speedScale
-                    shootComp.AutoAimingConfig.OuterRange.RangeRate = fovScale
-                    shootComp.AutoAimingConfig.OuterRange.RangeRateSight = fovScale
-                    shootComp.AutoAimingConfig.OuterRange.SpeedRateSight = speedScale
-                    shootComp.AutoAimingConfig.OuterRange.CrouchRate = 1.0
-                    shootComp.AutoAimingConfig.OuterRange.ProneRate = 1.0
-                end
-                if shootComp.AutoAimingConfig.InnerRange then
-                    shootComp.AutoAimingConfig.InnerRange.Speed = speedScale
-                    shootComp.AutoAimingConfig.InnerRange.SpeedRate = speedScale
-                    shootComp.AutoAimingConfig.InnerRange.RangeRate = fovScale
-                    shootComp.AutoAimingConfig.InnerRange.RangeRateSight = fovScale
-                    shootComp.AutoAimingConfig.InnerRange.SpeedRateSight = speedScale
-                    shootComp.AutoAimingConfig.InnerRange.CrouchRate = 1.0
-                    shootComp.AutoAimingConfig.InnerRange.ProneRate = 1.0
-                end
-                shootComp.AutoAimingConfig = shootComp.AutoAimingConfig
-            end
+        entity.GameDeviationFactor = 0.5 * (1 - strengthMul * 0.7)
+        entity.WeaponAimInTime = 20
+        entity.SwitchFromIdleToBackpackTime = 0.15
+        entity.SwitchFromBackpackToIdleTime = 0.15
+        entity.ShotGunHorizontalSpread = 0.0
+        entity.ShotGunVerticalSpread = 0.0
+        entity.RecoilKick = 0.2 * (1 - strengthMul * 0.6)
+        entity.RecoilKickADS = 0.2 * (1 - strengthMul * 0.6)
+        entity.AnimationKick = 0.2 * (1 - strengthMul * 0.6)
+        entity.AccessoriesVRecoilFactor = 0.6 * (1 - strengthMul * 0.4)
+        entity.AccessoriesHRecoilFactor = 0.6 * (1 - strengthMul * 0.4)
+        entity.GameDeviationFactor = 0.3 * (1 - strengthMul * 0.7)
+        if entity.RecoilInfo then
+            entity.RecoilInfo.VerticalRecoilMin = 0.2 * (1 - strengthMul * 0.5)
+            entity.RecoilInfo.VerticalRecoilMax = 0.2 * (1 - strengthMul * 0.5)
+            entity.RecoilInfo.RecoilSpeedVertical = 0.2 * (1 - strengthMul * 0.5)
+            entity.RecoilInfo.RecoilSpeedHorizontal = 0.15 * (1 - strengthMul * 0.5)
+            entity.RecoilInfo.VerticalRecoveryMax = 0.2 * (1 - strengthMul * 0.5)
         end
+        entity.RecoilModifierStand = 0.2 * (1 - strengthMul * 0.5)
+        entity.RecoilModifierCrouch = 0.2 * (1 - strengthMul * 0.5)
+        entity.RecoilModifierProne = 0.2 * (1 - strengthMul * 0.5)
+        if entity.AutoAimingConfig then
+            for _, range in ipairs({"OuterRange", "InnerRange"}) do
+                local cfg = entity.AutoAimingConfig[range]
+                if cfg then
+                    cfg.Speed = 8 * strengthMul
+                    cfg.RangeRate = 2 * strengthMul
+                    cfg.SpeedRate = 5 * strengthMul
+                    cfg.RangeRateSight = 2 * strengthMul
+                    cfg.SpeedRateSight = 4 * strengthMul
+                    cfg.CrouchRate = 4 * strengthMul
+                    cfg.ProneRate = 4 * strengthMul
+                    cfg.DyingRate = 0
+
+                    cfg.adsorbMaxRange = 200 * strengthMul
+                    cfg.adsorbMinRange = 20
+                    cfg.adsorbMinAttenuationDis = 100 * (1 - strengthMul * 0.5)
+                    cfg.adsorbMaxAttenuationDis = 8000
+                    cfg.adsorbActiveMinRange = 20
+                end
+            end
+            entity.AutoAimingConfig = entity.AutoAimingConfig
+        end
+
+        pcall(function()
+            local aimComp = char.BP_AutoAimingComponent_C
+                         or char.BP_AutoAimingComponent
+                         or char.AutoAimingComponent
+
+            if isValid(aimComp) and aimComp.Bones then
+                pcall(function() aimComp.Bones[0] = "head" end)
+                pcall(function() aimComp.Bones[1] = "head" end)
+                pcall(function() aimComp.Bones[2] = "head" end)
+
+                pcall(function() aimComp.Bones:Set(0, "head") end)
+                pcall(function() aimComp.Bones:Set(1, "head") end)
+                pcall(function() aimComp.Bones:Set(2, "head") end)
+            end
+        end)
+
     end)
 end
 
@@ -1665,7 +1611,7 @@ pcall(function()
     end
 end)
 
--- ==================== NH EXTRA BYPASS ====================
+-- ==================== AKMOD EXTRA BYPASS ====================
 pcall(function()
     local function nop() end
     local function retTrue() return true end
@@ -1761,213 +1707,49 @@ pcall(function()
             local AliasMap = require("client.slua.umg.NewSetting.Item.AliasMap")
             
             local ModMenuEsp = {
+                { UI = AliasMap.Title, Text = "SETTING" },
                 {
-                    Key = "ModMenu_ESP",
-                    UI = AliasMap.TitleSwitcher,
-                    Text = "Kích Hoạt Esp",
-                    ExpandIndex = 0,
-                    GetFunc = function() return _G.nhhaiConfig.EnableEsp or false end,
-                    SetFunc = function(_, value)
-                        _G.nhhaiConfig.EnableEsp = value
-                        return true
-                    end
-                },
-                {
-                    Key = "ESPHP",
+                    Key = "ESP",
                     UI = AliasMap.Switcher,
-                    Text = "Esp Máu",
-                    ExpandHandle = "ModMenu_ESP",
-                    GetFunc = function() return _G.nhhaiConfig.ShowHP or false end,
+                    Text = "WALL ESP",
+                    GetFunc = function() return _G.Mod_ESP_Enabled or false end,
                     SetFunc = function(_, value)
-                        _G.nhhaiConfig.ShowHP = value
-                        return true
-                    end
-                },
-                {
-                    Key = "ESPSKELETON",
-                    UI = AliasMap.Switcher,
-                    Text = "Esp Xương (Bảo Trì)",
-                    ExpandHandle = "ModMenu_ESP",
-                    GetFunc = function() return _G.nhhaiConfig.Skeleton or false end,
-                    SetFunc = function(_, value)
-                        _G.nhhaiConfig.Skeleton = value
-                        return true
-                    end
-                },
-                {
-                    Key = "ESPNAME",
-                    UI = AliasMap.Switcher,
-                    Text = "Esp Tên",
-                    ExpandHandle = "ModMenu_ESP",
-                    GetFunc = function() return _G.nhhaiConfig.ShowName or false end,
-                    SetFunc = function(_, value)
-                        _G.nhhaiConfig.ShowName = value
-                        return true
-                    end
-                },
-                {
-                    Key = "ESPDISTANCE",
-                    UI = AliasMap.Switcher,
-                    Text = "Esp Khoảng Cách",
-                    ExpandHandle = "ModMenu_ESP",
-                    GetFunc = function() return _G.nhhaiConfig.ShowDist or false end,
-                    SetFunc = function(_, value)
-                        _G.nhhaiConfig.ShowDist = value
-                        return true
-                    end
-                },
-                {
-                    Key = "ESPCOLOR_VIS",
-                    UI = AliasMap.Switcher,
-                    Text = "Màu Khi Kẻ Địch Ẩn/Hiện",
-                    ExpandHandle = "ModMenu_ESP",
-                    Visible = function() return _G.nhhaiConfig.EnableEsp end, -- Chỉ hiện khi bật ESP
-                    GetFunc = function() return _G.nhhaiConfig.EnableVisColor or false end,
-                    SetFunc = function(_, value)
-                        _G.nhhaiConfig.EnableVisColor = value
+                        _G.Mod_ESP_Enabled = value
+                        print("[MOD] WALL ESP: " .. (value and "ON ✓" or "OFF ✗"))
                         return true
                     end
                 }
             }
             local ModMenuAim = {
+                { UI = AliasMap.Title, Text = "SETTING" },
                 {
                     Key = "ModMenu_Aimbot",
-                    UI = AliasMap.TitleSwitcher,
-                    Text = "Aimbot",
-                    ExpandIndex = 0,
-                    GetFunc = function() return _G.nhhaiConfig.EnableAutoAim or false end,
+                    UI = AliasMap.Switcher,
+                    Text = "AIMBOT",
+                    GetFunc = function() 
+                        local state = _G.Mod_Aimbot_Enabled or false
+                        return state
+                    end,
                     SetFunc = function(_, value)
-                        _G.nhhaiConfig.EnableAutoAim = value
-                        return true 
-                    end
-                },
-                {
-                    Key = "ModMenu_Bones_Title", 
-                    UI = AliasMap.Title, 
-                    Text = "Chọn Aim", 
-                    ExpandHandle = "ModMenu_Aimbot" 
-                },
-                {
-                    Key = "ModMenu_Aim_Head",
-                    UI = AliasMap.Switcher,
-                    Text = "Aim Đầu",
-                    ExpandHandle = "ModMenu_Aimbot",
-                    GetFunc = function() return _G.nhhaiConfig.AutoAimBone == "Head" end,
-                    SetFunc = function(c, v) 
-                        if v then _G.nhhaiConfig.AutoAimBone = "Head" end
-                        return true 
-                    end
-                },
-                {
-                    Key = "ModMenu_Aim_Neck",
-                    UI = AliasMap.Switcher,
-                    Text = "Aim Bụng",
-                    ExpandHandle = "ModMenu_Aimbot",
-                    GetFunc = function() return _G.nhhaiConfig.AutoAimBone == "neck_01" end,
-                    SetFunc = function(c, v) 
-                        if v then _G.nhhaiConfig.AutoAimBone = "neck_01" end
-                        return true 
-                    end
-                },
-                {
-                    Key = "ModMenu_Aim_Pelvis",
-                    UI = AliasMap.Switcher,
-                    Text = "Aim Chân",
-                    ExpandHandle = "ModMenu_Aimbot",
-                    GetFunc = function() return _G.nhhaiConfig.AutoAimBone == "pelvis" end,
-                    SetFunc = function(c, v) 
-                        if v then _G.nhhaiConfig.AutoAimBone = "pelvis" end
-                        return true 
+                        _G.Mod_Aimbot_Enabled = value
+                        print("[MOD] AIMBOT: " .. (value and "ON ✓" or "OFF ✗"))
+                        return true
                     end
                 },
                 {
                     Key = "ModMenu_AimbotStrength",
                     UI = AliasMap.Slider,
-                    Text = "Tốc Độ Aimbot",
+                    Text = "Aimbot Strength",
                     Min = 0,
                     Max = 100,
-                    IsPercent = false,
-                    ExpandHandle = "ModMenu_Aimbot",
+                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
                     GetFunc = function() 
-                        return _G.nhhaiConfig.AimbotStrength or 50
+                        return _G.Mod_AimbotStrength or 90
                     end,
                     SetFunc = function(_, value)
-                        _G.nhhaiConfig.AimbotStrength = math.floor(value)
-                        return true
-                    end
-                },
-                {
-                    Key = "ModMenu_AimbotFov",
-                    UI = AliasMap.Slider,
-                    Text = "Aimbot Fov",
-                    Min = 0,
-                    Max = 100,
-                    IsPercent = false,
-                    ExpandHandle = "ModMenu_Aimbot",
-                    GetFunc = function() 
-                        return _G.nhhaiConfig.Aimbot_Fov or 50
-                    end,
-                    SetFunc = function(_, value)
-                        _G.nhhaiConfig.Aimbot_Fov = math.floor(value)
-                        return true
-                    end
-                },
-                {
-                    Key = "ModMenu_MagicBullet",
-                    UI = AliasMap.TitleSwitcher,
-                    Text = "Magic Bullet",
-                    ExpandIndex = 0,
-                    GetFunc = function() return _G.nhhaiConfig.EnableMagicbullet or false end,
-                    SetFunc = function(_, value)
-                        _G.nhhaiConfig.EnableMagicbullet = value
-                        return true
-                    end
-                },
-                {
-                    Key = "ModMenu_MagicHead",
-                    UI = AliasMap.Slider,
-                    Text = "Magic Đầu",
-                    Min = 0,
-                    Max = 100,
-                    IsPercent = false,
-                    ExpandHandle = "ModMenu_MagicBullet",
-                    GetFunc = function() 
-                        return _G.nhhaiConfig.MagicHead or 40
-                    end,
-                    SetFunc = function(_, value)
-                        _G.nhhaiConfig.MagicHead = math.floor(value)
-                        return true
-                    end
-                },
-                {
-                    Key = "ModMenu_MagicBody",
-                    UI = AliasMap.Slider,
-                    Text = "Magic Thân Trên",
-                    Min = 0,
-                    Max = 100,
-                    IsPercent = false,
-                    ExpandHandle = "ModMenu_MagicBullet",
-                    GetFunc = function() 
-                        return _G.nhhaiConfig.MagicBody or 40
-                    end,
-                    SetFunc = function(_, value)
-                        _G.nhhaiConfig.MagicBody = math.floor(value)
-                        return true
-                    end
-                },
-                {
-                    Key = "ModMenu_MagicLess",
-                    UI = AliasMap.Slider,
-                    Text = "Magic Thân Dưới",
-                    Min = 0,
-                    Max = 100,
-                    IsPercent = false,
-                    ExpandHandle = "ModMenu_MagicBullet",
-                    GetFunc = function() 
-                        return _G.nhhaiConfig.MagicLess or 40
-                    end,
-                    SetFunc = function(_, value)
-                        _G.nhhaiConfig.MagicLess = math.floor(value)
+                        _G.Mod_AimbotStrength = math.floor(value)
+                        -- Dòng print này để bạn kiểm tra trong console
+                        print("[MOD] Aimbot Strength: " .. _G.Mod_AimbotStrength)
                         return true
                     end
                 }
@@ -1976,22 +1758,23 @@ pcall(function()
                 { UI = AliasMap.Title, Text = "SETTING" },
                 {
                     Key = "FPS165",
-                    UI = AliasMap.TitleSwitcher,
+                    UI = AliasMap.Switcher,
                     Text = "165 FPS",
-                    GetFunc = function() return _G.nhhaiConfig.FPS165_Enabled ~= false end,
+                    GetFunc = function() return _G.Mod_FPS165_Enabled ~= false end,
                     SetFunc = function(_, value)
-                        _G.nhhaiConfig.FPS165_Enabled = value
+                        _G.Mod_FPS165_Enabled = value
                         if value then _G.Enable165FPSLogic() end
+                        print("[MOD] 165 FPS: " .. (value and "ON ✓" or "OFF ✗"))
                         return true
                     end
                 },
                 {
                     Key = "NoGrass",
-                    UI = AliasMap.TitleSwitcher,
-                    Text = "Xóa Cỏ",
-                    GetFunc = function() return _G.nhhaiConfig.NoGrass_Enabled ~= false end,
+                    UI = AliasMap.Switcher,
+                    Text = "NO GRASS",
+                    GetFunc = function() return _G.Mod_NoGrass_Enabled ~= false end,
                     SetFunc = function(_, value)
-                        _G.nhhaiConfig.NoGrass_Enabled = value
+                        _G.Mod_NoGrass_Enabled = value
                         if value then
                             pcall(function()
                                 local gi = slua_GameFrontendHUD and slua_GameFrontendHUD:GetGameInstance()
@@ -2001,52 +1784,36 @@ pcall(function()
                                 end
                             end)
                         end
-                        return true
-                    end
-                },
-                {
-                    Key = "Blacksky",
-                    UI = AliasMap.TitleSwitcher,
-                    Text = "Trời Tối",
-                    GetFunc = function() return _G.nhhaiConfig.BlackSky ~= false end,
-                    SetFunc = function(_, value)
-                        _G.nhhaiConfig.BlackSky = value
-                        if value then
-                            pcall(function()
-                                local logic_setting_graphics = require("client.slua.logic.setting.logic_setting_graphics")
-                                local gi = logic_setting_graphics.GetGameInstance()
-                                if gi then 
-                                    -- Nếu value là true thì set 9999, ngược lại thì set 0
-                                    local cmdValue = value and "9999" or "0"
-                                    gi:ExecuteCMD("r.CylinderMaxDrawHeight", cmdValue)
-                            end)
-                        end
+                        print("[MOD] NO GRASS: " .. (value and "ON ✓" or "OFF ✗"))
                         return true
                     end
                 },
                 {
                     Key = "iPadView",
-                    UI = AliasMap.TitleSwitcher,
+                    UI = AliasMap.Switcher,
                     Text = "IPAD VIEW",
-                    GetFunc = function() return _G.nhhaiConfig.iPadView_Enabled ~= false end,
+                    GetFunc = function() return _G.Mod_iPadView_Enabled ~= false end,
                     SetFunc = function(_, value)
-                        _G.nhhaiConfig.iPadView_Enabled = value
+                        _G.Mod_iPadView_Enabled = value
                         if value then _G.EnableiPadViewUI() end
+                        print("[MOD] IPAD VIEW: " .. (value and "ON ✓" or "OFF ✗"))
                         return true
                     end
                 },
                 {
-                    Key = "iPadFOV",
+                    Key = "ModMenu_iPadFOV",
                     UI = AliasMap.Slider,
-                    Text = "iPad View",
-                    Min = 90,
+                    Text = "iPad FOV",
+                    Min = 80,
                     Max = 150,
-                    IsPercent = false,
+                    Format = "%.0f", -- Dòng này quan trọng: Nó sẽ bỏ % và chỉ hiện số
                     GetFunc = function() 
-                        return _G.nhhaiConfig.iPadViewDistance or 90
+                        return _G.Mod_iPadViewDistance or 90
                     end,
                     SetFunc = function(_, value)
-                        _G.nhhaiConfig.iPadViewDistance = math.floor(value)
+                        _G.Mod_iPadViewDistance = math.floor(value)
+                        -- Dòng print này để bạn kiểm tra trong console
+                        print("[MOD] FOV đã chọn: " .. _G.Mod_iPadViewDistance)
                         return true
                     end
                 }
@@ -2056,9 +1823,21 @@ pcall(function()
                 loc = "NHU HAI MOD",
                 UIKey = "Setting_Page_Privacy", 
                 Category = {
-                    { Key = "ModMenu_Main", loc = "Esp", Stack = ModMenuEsp },
-                    { Key = "ModMenu_Aim", loc = "Aim", Stack = ModMenuAim },
-                    { Key = "ModMenu_Other",loc = "Khác", Stack = ModMenuOther }
+                    {
+                        Key = "ModMenu_Main",
+                        loc = "Esp", 
+                        Stack = ModMenuEsp
+                    },
+                    {
+                        Key = "ModMenu_Aim",
+                        loc = "Aim", 
+                        Stack = ModMenuAim
+                    },
+                    {
+                        Key = "ModMenu_Other",
+                        loc = "Other", 
+                        Stack = ModMenuOther
+                    }
                 }
             }
             
