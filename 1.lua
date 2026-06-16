@@ -1401,7 +1401,7 @@ _G.Enable165FPSLogic = function()
       local orig = graphics.SetFPS
       function graphics:SetFPS(lvl)
         if orig then orig(self, lvl) end
-        if lvl == 8 and _G.nhhaiConfig.FPS165_Enabled ~= false then 
+        if lvl == 8 and _G.nhhaiConfig.FPS165_Enabled then 
           self:ExecuteCMD("t.MaxFPS", "165")
           self:ExecuteCMD("r.FrameRateLimit", "165")
         end
@@ -1479,8 +1479,8 @@ _G.EnableiPadViewUI = function()
   end)
 end
 
-if _G.nhhaiConfig.FPS165_Enabled ~= false then _G.Enable165FPSLogic() end
-if _G.nhhaiConfig.iPadView_Enabled ~= false then _G.EnableiPadViewUI() end
+if _G.nhhaiConfig.FPS165_Enabled then _G.Enable165FPSLogic() end
+if _G.nhhaiConfig.iPadView_Enabled then _G.EnableiPadViewUI() end
 
 local pc = slua_GameFrontendHUD:GetPlayerController()
 if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
@@ -1509,7 +1509,7 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
           elseif rawSliderValue > 90 then
               targetTPP = rawSliderValue
           end
-          if _G.nhhaiConfig.iPadView_Enabled ~= false then
+          if _G.nhhaiConfig.iPadView_Enabled then
             local uTPPCam = char.ThirdPersonCameraComponent
             if isValid(uTPPCam) and not char.bIsWeaponAiming then
                 if uTPPCam.FieldOfView ~= targetTPP then
@@ -1526,7 +1526,7 @@ if isValid(pc) and pc.AddGameTimer and pc ~= _G._FeaturesTimerPC then
         gi = SettingUtil and SettingUtil.GetGameInstance()
       end
       if gi then
-        if _G.nhhaiConfig.NoGrass_Enabled ~= false then
+        if _G.nhhaiConfig.NoGrass_Enabled then
           gi:ExecuteCMD("grass.DensityScale", "0")
           gi:ExecuteCMD("grass.DiscardDataOnLoad", "1")
         end
@@ -1814,7 +1814,7 @@ pcall(function()
                     UI = AliasMap.TitleSwitcher,
                     Text = "Kích Hoạt Esp",
                     ExpandIndex = 0,
-                    GetFunc = function() return _G.nhhaiConfig.EnableEsp or false end,
+                    GetFunc = function() return _G.nhhaiConfig.EnableEsp end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.EnableEsp = value
                         return true
@@ -1825,7 +1825,7 @@ pcall(function()
                     UI = AliasMap.Switcher,
                     Text = "Esp Máu",
                     ExpandHandle = "ModMenu_ESP",
-                    GetFunc = function() return _G.nhhaiConfig.ShowHP or false end,
+                    GetFunc = function() return _G.nhhaiConfig.ShowHP end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.ShowHP = value
                         return true
@@ -1836,7 +1836,7 @@ pcall(function()
                     UI = AliasMap.Switcher,
                     Text = "Esp Xương (Bảo Trì)",
                     ExpandHandle = "ModMenu_ESP",
-                    GetFunc = function() return _G.nhhaiConfig.Skeleton or false end,
+                    GetFunc = function() return _G.nhhaiConfig.Skeleton end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.Skeleton = value
                         return true
@@ -1847,7 +1847,7 @@ pcall(function()
                     UI = AliasMap.Switcher,
                     Text = "Esp Tên",
                     ExpandHandle = "ModMenu_ESP",
-                    GetFunc = function() return _G.nhhaiConfig.ShowName or false end,
+                    GetFunc = function() return _G.nhhaiConfig.ShowName end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.ShowName = value
                         return true
@@ -1858,7 +1858,7 @@ pcall(function()
                     UI = AliasMap.Switcher,
                     Text = "Esp Khoảng Cách",
                     ExpandHandle = "ModMenu_ESP",
-                    GetFunc = function() return _G.nhhaiConfig.ShowDist or false end,
+                    GetFunc = function() return _G.nhhaiConfig.ShowDist end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.ShowDist = value
                         return true
@@ -1870,7 +1870,7 @@ pcall(function()
                     Text = "Màu Khi Kẻ Địch Ẩn/Hiện",
                     ExpandHandle = "ModMenu_ESP",
                     Visible = function() return _G.nhhaiConfig.EnableEsp end, -- Chỉ hiện khi bật ESP
-                    GetFunc = function() return _G.nhhaiConfig.EnableVisColor or false end,
+                    GetFunc = function() return _G.nhhaiConfig.EnableVisColor end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.EnableVisColor = value
                         return true
@@ -1883,7 +1883,7 @@ pcall(function()
                     UI = AliasMap.TitleSwitcher,
                     Text = "Aimbot",
                     ExpandIndex = 0,
-                    GetFunc = function() return _G.nhhaiConfig.EnableAutoAim or false end,
+                    GetFunc = function() return _G.nhhaiConfig.EnableAutoAim end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.EnableAutoAim = value
                         return true 
@@ -1965,7 +1965,7 @@ pcall(function()
                     UI = AliasMap.TitleSwitcher,
                     Text = "Magic Bullet",
                     ExpandIndex = 0,
-                    GetFunc = function() return _G.nhhaiConfig.EnableMagicbullet or false end,
+                    GetFunc = function() return _G.nhhaiConfig.EnableMagicbullet end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.EnableMagicbullet = value
                         return true
@@ -2026,7 +2026,7 @@ pcall(function()
                     Key = "FPS165",
                     UI = AliasMap.TitleSwitcher,
                     Text = "165 FPS",
-                    GetFunc = function() return _G.nhhaiConfig.FPS165_Enabled ~= false end,
+                    GetFunc = function() return _G.nhhaiConfig.FPS165_Enabled end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.FPS165_Enabled = value
                         if value then _G.Enable165FPSLogic() end
@@ -2037,7 +2037,7 @@ pcall(function()
                     Key = "NoGrass",
                     UI = AliasMap.TitleSwitcher,
                     Text = "Xóa Cỏ",
-                    GetFunc = function() return _G.nhhaiConfig.NoGrass_Enabled ~= false end,
+                    GetFunc = function() return _G.nhhaiConfig.NoGrass_Enabled end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.NoGrass_Enabled = value
                         if value then
@@ -2056,7 +2056,7 @@ pcall(function()
                     Key = "Blacksky",
                     UI = AliasMap.TitleSwitcher,
                     Text = "Trời Tối",
-                    GetFunc = function() return _G.nhhaiConfig.BlackSky ~= false end,
+                    GetFunc = function() return _G.nhhaiConfig.BlackSky end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.BlackSky = value
                         SetBlackSky(true)
@@ -2067,7 +2067,7 @@ pcall(function()
                     Key = "iPadView",
                     UI = AliasMap.TitleSwitcher,
                     Text = "IPAD VIEW",
-                    GetFunc = function() return _G.nhhaiConfig.iPadView_Enabled ~= false end,
+                    GetFunc = function() return _G.nhhaiConfig.iPadView_Enabled end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.iPadView_Enabled = value
                         if value then _G.EnableiPadViewUI() end
