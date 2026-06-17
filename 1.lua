@@ -2015,6 +2015,7 @@ pcall(function()
                     Key = "ModMenu_Global_Cheats",
                     UI = AliasMap.TitleSwitcher,
                     Text = "KÍCH HOẠT HỆ THỐNG AIM",
+                    ExpandIndex = 0,
                     GetFunc = function() return _G.CheatsEnabled end,
                     SetFunc = function(_, value)
                         _G.CheatsEnabled = value
@@ -2025,7 +2026,6 @@ pcall(function()
                     Key = "ModMenu_Aimbot",
                     UI = AliasMap.TitleSwitcher,
                     Text = "Tự Động Ngắm (Auto Aim)",
-                    ExpandIndex = 0,
                     ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.EnableAutoAim end,
                     SetFunc = function(_, value)
@@ -2038,13 +2038,13 @@ pcall(function()
                     Key = "ModMenu_Bones_Title", 
                     UI = AliasMap.Title, 
                     Text = "Vị Trí Mục Tiêu (Xương)", 
-                    ExpandHandle = "ModMenu_Aimbot" 
+                    ExpandHandle = "ModMenu_Global_Cheats" 
                 },
                 {
                     Key = "ModMenu_Aim_Head",
                     UI = AliasMap.Switcher,
                     Text = "Mục Tiêu: Đầu",
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.AutoAimBone == "Head" end,
                     SetFunc = function(c, v) 
                         if v then _G.nhhaiConfig.AutoAimBone = "Head" end
@@ -2055,7 +2055,7 @@ pcall(function()
                     Key = "ModMenu_Aim_Neck",
                     UI = AliasMap.Switcher,
                     Text = "Mục Tiêu: Bụng",
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.AutoAimBone == "neck_01" end,
                     SetFunc = function(c, v) 
                         if v then _G.nhhaiConfig.AutoAimBone = "neck_01" end
@@ -2066,7 +2066,7 @@ pcall(function()
                     Key = "ModMenu_Aim_Pelvis",
                     UI = AliasMap.Switcher,
                     Text = "Mục Tiêu: Chân",
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.AutoAimBone == "pelvis" end,
                     SetFunc = function(c, v) 
                         if v then _G.nhhaiConfig.AutoAimBone = "pelvis" end
@@ -2078,13 +2078,13 @@ pcall(function()
                     Key = "ModMenu_TypeTarget_Title", 
                     UI = AliasMap.Title, 
                     Text = "Vị Trí Khóa Tâm (Chiều Cao)", 
-                    ExpandHandle = "ModMenu_Aimbot" 
+                    ExpandHandle = "ModMenu_Global_Cheats" 
                 },
                 {
                     Key = "ModMenu_Target_Head",
                     UI = AliasMap.Switcher,
                     Text = "Khóa: HEAD",
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return (_G.nhhaiConfig.TypeTarget or "HEAD") == "HEAD" end,
                     SetFunc = function(c, v) 
                         if v then _G.nhhaiConfig.TypeTarget = "HEAD" end
@@ -2095,7 +2095,7 @@ pcall(function()
                     Key = "ModMenu_Target_Chest",
                     UI = AliasMap.Switcher,
                     Text = "Khóa: CHEST",
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.TypeTarget == "CHEST" end,
                     SetFunc = function(c, v) 
                         if v then _G.nhhaiConfig.TypeTarget = "CHEST" end
@@ -2106,7 +2106,7 @@ pcall(function()
                     Key = "ModMenu_Target_Body",
                     UI = AliasMap.Switcher,
                     Text = "Khóa: BODY",
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.TypeTarget == "BODY" end,
                     SetFunc = function(c, v) 
                         if v then _G.nhhaiConfig.TypeTarget = "BODY" end
@@ -2118,13 +2118,13 @@ pcall(function()
                     Key = "ModMenu_Prediction_Title", 
                     UI = AliasMap.Title, 
                     Text = "Dự Đoán & Bù Trừ Tọa Độ", 
-                    ExpandHandle = "ModMenu_Aimbot" 
+                    ExpandHandle = "ModMenu_Global_Cheats" 
                 },
                 {
                     Key = "ModMenu_DisablePred",
                     UI = AliasMap.Switcher,
                     Text = "Tắt Dự Đoán Đường Đạn",
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.DisablePrediction or false end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.DisablePrediction = value
@@ -2138,7 +2138,7 @@ pcall(function()
                     Min = 0,
                     Max = 200, -- Ví dụ 98 ứng với 9.8
                     IsPercent = false,
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() 
                         return math.floor((_G.nhhaiConfig.ProtectionValue or 9.8) * 10)
                     end,
@@ -2152,13 +2152,13 @@ pcall(function()
                     Key = "ModMenu_Recoil_Title", 
                     UI = AliasMap.Title, 
                     Text = "Cơ Chế Ghì Tâm Giảm Giật", 
-                    ExpandHandle = "ModMenu_Aimbot" 
+                    ExpandHandle = "ModMenu_Global_Cheats" 
                 },
                 {
                     Key = "ModMenu_DisableRecoil",
                     UI = AliasMap.Switcher,
                     Text = "Tắt Ghì Tâm Tự Động",
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.DisableRecoilCompensation or false end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.DisableRecoilCompensation = value
@@ -2172,7 +2172,7 @@ pcall(function()
                     Min = 0,
                     Max = 50, -- Ví dụ 15 ứng với 1.5
                     IsPercent = false,
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() 
                         return math.floor((_G.nhhaiConfig.RecoilCompensationValue or 1.5) * 10)
                     end,
@@ -2186,7 +2186,7 @@ pcall(function()
                     Key = "ModMenu_Specs_Title", 
                     UI = AliasMap.Title, 
                     Text = "Thông Số Khóa Tâm", 
-                    ExpandHandle = "ModMenu_Aimbot" 
+                    ExpandHandle = "ModMenu_Global_Cheats" 
                 },
                 {
                     Key = "ModMenu_AimbotSmoothness",
@@ -2195,7 +2195,7 @@ pcall(function()
                     Min = 1,
                     Max = 30,
                     IsPercent = false,
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() 
                         return _G.nhhaiConfig.AimbotSmoothness or 1
                     end,
@@ -2211,7 +2211,7 @@ pcall(function()
                     Min = 0,
                     Max = 100,
                     IsPercent = false,
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.AimbotStrength or 50 end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.AimbotStrength = math.floor(value)
@@ -2225,7 +2225,7 @@ pcall(function()
                     Min = 0,
                     Max = 100,
                     IsPercent = false,
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.Aimbot_Fov or 50 end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.Aimbot_Fov = math.floor(value)
@@ -2236,7 +2236,7 @@ pcall(function()
                     Key = "ModMenu_ModifyEngine",
                     UI = AliasMap.Switcher,
                     Text = "Chỉnh Sửa Config Engine",
-                    ExpandHandle = "ModMenu_Aimbot",
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.ModifyEngineConfig ~= false end, -- mặc định true
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.ModifyEngineConfig = value
