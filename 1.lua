@@ -76,6 +76,15 @@ _G.nhhaiConfig = _G.nhhaiConfig or {
     MagicBody = 40,
     MagicLess = 40,
     iPadViewDistance = 90,
+    -- Thêm các giá trị mặc định này nếu menu của bạn chưa có
+    TypeTarget = "HEAD", -- "HEAD", "CHEST", hoặc "BODY"
+    DisablePrediction = false, -- Mở dự đoán đường đạn
+    ProtectionValue = 9.8, -- Trọng lực / Gia tốc bù trừ đạn rơi
+    DisableRecoilCompensation = false, -- Mở tự động ghì tâm giảm giật
+    RecoilCompensationValue = 1.5, -- Độ ghì tâm
+    AimbotSmoothness = 1,  -- Độ mượt (1 = Khóa cứng lập tức)
+    ModifyEngineConfig = true                            -- Giữ tính năng chỉnh AutoAimingConfig cũ
+
 }
 
 _G.nhhaiState = _G.nhhaiState or {}
@@ -1631,55 +1640,179 @@ end
 
 _G._AimbotCurrentPC = nil
 
-local function ApplyHardAimbot()
+-- =============================================================================
+-- CÁC HÀM BỔ TRỢ TOÁN HỌC (Giữ nguyên bên ngoài để tối ưu hiệu năng)
+-- =============================================================================
+local function Add_VectorVector(v1, v2)
+    return {X = v1.X + v2.X, Y = v1.Y + v2.Y, Z = v1.Z + v2.Z}
+end
+
+local function Subtract_VectorVector(v1, v2)
+    return {X = v1.X - v2.X, Y = v1.Y - v2.Y, Z = v1.Z - v2.Z}
+end
+
+local function Multiply_VectorFloat(v, f)
+    return {X = v.X * f, Y = v.Y * f, Z = v.Z * f}
+end
+
+local function Conv_VectorToRotator(v)
+    local pitch = math.atan2(v.Z, math.sqrt(v.X * v.X + v.Y * v.Y)) * (180 / math.pi)
+    local yaw = math.atan2(v.Y, v.X) * (180 / math.pi)
+    return {Pitch = pitch, Yaw = yaw, Roll = 0}
+end
+
+local function ClampAngles(rot)
+    if rot.Pitch > 180 then rot.Pitch = rot.Pitch - 360 end
+    if rot.Pitch < -180 then rot.Pitch = rot.Pitch + 360 end
+    if rot.Yaw > 180 then rot.Yaw = rot.Yaw - 360 end
+    if rot.Yaw < -180 then rot.Yaw = rot.Yaw + 360 end
+    
+    if rot.Pitch > 89 then rot.Pitch = 89 end
+    if rot.Pitch < -89 then rot.Pitch = -89 end
+end
+
+-- =============================================================================
+-- HÀM APPLY AIMBOT THEO CẤU TRÚC MỚI
+-- =============================================================================
+local function ApplyHardAimbot(Target) -- Thêm tham số Target (Mục tiêu cần khóa)
     if not _G.CheatsEnabled then return end
     if _G.nhhaiConfig.EnableAutoAim == false then return end
+    
     pcall(function()
+        -- 1. Kiểm tra tính hợp lệ của Player Controller và Nhân vật địa phương
         local pc = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
         if not slua.isValid(pc) then return end
         
         local char = pc:GetPlayerCharacterSafety()
         if not slua.isValid(char) then return end
         
+        -- Kiểm tra xem có mục tiêu (Target) hợp lệ truyền vào hay không
+        if not Target or not slua.isValid(Target) then return end
+        
+        -- 2. Kiểm tra các thành phần Vũ khí
         local weaponManager = char:GetWeaponManagerComponent()
         if not slua.isValid(weaponManager) then return end
         
         local currentWeapon = weaponManager.CurrentWeaponReplicated
         if not slua.isValid(currentWeapon) then return end
         
-        local shootComp = currentWeapon.ShootWeaponEntityComp
+        -- Sử dụng ShootWeaponComponent hoặc ShootWeaponEntityComp tùy thuộc vào phiên bản Engine của bạn
+        local shootComp = currentWeapon.ShootWeaponEntityComp or currentWeapon.ShootWeaponComponent
         if not slua.isValid(shootComp) then return end
         
-        if _G.nhhaiConfig.EnableAutoAim then
+        local shootEntity = shootComp.ShootWeaponEntityComponent or shootComp
+        if not slua.isValid(shootEntity) then return end
+
+        -- 3. Kiểm tra slot vũ khí (Ví dụ chỉ hoạt động từ Slot 1 đến Slot 3)
+        local propSlot = weaponManager:GetCurrentUsingPropSlot()
+        local slotVal = propSlot and propSlot:GetValue()
+        if not slotVal or slotVal < 1 or slotVal > 3 then return end
+
+        -- =====================================================================
+        -- PHẦN I: TÍNH TOÁN TỌA ĐỘ VÀ DỰ ĐOÁN ĐƯỜNG ĐẠN (PREDICTION)
+        -- =====================================================================
+        
+        -- Mặc định lấy vị trí xương đầu (Hoặc đổi thành "head" tùy game)
+        local targetAimPos = Target:GetBonePos("Head", {})
+        
+        -- Điều chỉnh vị trí theo cấu hình mục tiêu (Ngực = Chest, Người = Body)
+        if _G.nhhaiConfig.TypeTarget == "CHEST" then 
+            targetAimPos.Z = targetAimPos.Z - 25.0
+        elseif _G.nhhaiConfig.TypeTarget == "BODY" then 
+            targetAimPos.Z = targetAimPos.Z - 50.0
+        end
+        
+        -- Tính toán khoảng cách và thời gian đạn bay dựa trên BulletRange
+        local dist = char:GetDistanceTo(Target)
+        local bulletRange = shootEntity.BulletRange or 10000.0 -- Giá trị phòng hờ nếu bị nil
+        local timeToTravel = dist / bulletRange
+        
+        -- Tính toán đón đầu (Prediction)
+        if not _G.nhhaiConfig.DisablePrediction then
+            local currentVehicle = Target.CurrentVehicle
+            if slua.isValid(currentVehicle) then
+                -- Nếu mục tiêu ở trên xe, tính theo vận tốc di chuyển của xe
+                local linearVelocity = currentVehicle.ReplicatedMovement.LinearVelocity
+                targetAimPos = Add_VectorVector(targetAimPos, Multiply_VectorFloat(linearVelocity, timeToTravel))
+                targetAimPos.Z = targetAimPos.Z + (linearVelocity.Z * timeToTravel) + (0.5 * (_G.nhhaiConfig.ProtectionValue or 0) * timeToTravel * timeToTravel)
+            else
+                -- Nếu đi bộ, tính theo vận tốc chạy của nhân vật
+                local velocity = Target:GetVelocity()
+                targetAimPos = Add_VectorVector(targetAimPos, Multiply_VectorFloat(velocity, timeToTravel))
+                targetAimPos.Z = targetAimPos.Z + (velocity.Z * timeToTravel) + (0.5 * (_G.nhhaiConfig.ProtectionValue or 0) * timeToTravel * timeToTravel)
+            end
+        end
+        
+        -- Bù trừ độ giật tâm ngắm khi đang sấy (Recoil Compensation)
+        if not _G.nhhaiConfig.DisableRecoilCompensation then
+            if char.bIsGunADS and char.bIsWeaponFiring then
+                local distFactor = char:GetDistanceTo(Target) / 100.0
+                local compValue = _G.nhhaiConfig.RecoilCompensationValue or 1.0
+                targetAimPos.Z = targetAimPos.Z - (distFactor * compValue)
+            end
+        end
+
+        -- =====================================================================
+        -- PHẦN II: THAY ĐỔI GÓC NHÌN CAMERA TRỰC TIẾP (HARD AIMBOT)
+        -- =====================================================================
+        if pc.PlayerCameraManager and pc.PlayerCameraManager.CameraCache then
+            local cameraLocation = pc.PlayerCameraManager.CameraCache.POV.Location
+            local fDir = Subtract_VectorVector(targetAimPos, cameraLocation)
+            local rott = Conv_VectorToRotator(fDir)
+            
+            local m_Rotation = pc.ControlRotation
+            rott.Pitch = rott.Pitch - m_Rotation.Pitch
+            rott.Yaw = rott.Yaw - m_Rotation.Yaw
+            
+            ClampAngles(rott)
+            
+            -- Tính toán độ mượt (Smoothness). Nếu cấu hình bằng 0 hoặc 1 thì khóa tâm lập tức (Hard Aim)
+            local smoothness = _G.nhhaiConfig.AimbotSmoothness or 1
+            if smoothness < 1 then smoothness = 1 end
+            
+            m_Rotation.Pitch = m_Rotation.Pitch + (rott.Pitch / smoothness)
+            m_Rotation.Yaw = m_Rotation.Yaw + (rott.Yaw / smoothness)
+            
+            -- Áp dụng góc xoay mới vào Player Controller
+            pc:SetControlRotation(m_Rotation, "")
+        end
+
+        -- =====================================================================
+        -- PHẦN III: GHÌ SỬA ĐỔI CONFIG ENGINE (Giữ lại từ cấu trúc cũ của bạn)
+        -- =====================================================================
+        if _G.nhhaiConfig.ModifyEngineConfig and shootComp.AutoAimingConfig then
             local speed_aimbot = _G.nhhaiConfig.AimbotStrength / 10
             local fov_aimbot = _G.nhhaiConfig.Aimbot_Fov / 10
                                     
             local speedScale = 1 + (1 * speed_aimbot)
             local fovScale = 1.5 + (1 * fov_aimbot)
-            if shootComp.AutoAimingConfig then
-                if shootComp.AutoAimingConfig.OuterRange then
-                    shootComp.AutoAimingConfig.OuterRange.Speed = speedScale
-                    shootComp.AutoAimingConfig.OuterRange.SpeedRate = speedScale
-                    shootComp.AutoAimingConfig.OuterRange.RangeRate = fovScale
-                    shootComp.AutoAimingConfig.OuterRange.RangeRateSight = fovScale
-                    shootComp.AutoAimingConfig.OuterRange.SpeedRateSight = speedScale
-                    shootComp.AutoAimingConfig.OuterRange.CrouchRate = 1.0
-                    shootComp.AutoAimingConfig.OuterRange.ProneRate = 1.0
-                end
-                if shootComp.AutoAimingConfig.InnerRange then
-                    shootComp.AutoAimingConfig.InnerRange.Speed = speedScale
-                    shootComp.AutoAimingConfig.InnerRange.SpeedRate = speedScale
-                    shootComp.AutoAimingConfig.InnerRange.RangeRate = fovScale
-                    shootComp.AutoAimingConfig.InnerRange.RangeRateSight = fovScale
-                    shootComp.AutoAimingConfig.InnerRange.SpeedRateSight = speedScale
-                    shootComp.AutoAimingConfig.InnerRange.CrouchRate = 1.0
-                    shootComp.AutoAimingConfig.InnerRange.ProneRate = 1.0
-                end
-                shootComp.AutoAimingConfig = shootComp.AutoAimingConfig
+            
+            if shootComp.AutoAimingConfig.OuterRange then
+                local outer = shootComp.AutoAimingConfig.OuterRange
+                outer.Speed = speedScale
+                outer.SpeedRate = speedScale
+                outer.RangeRate = fovScale
+                outer.RangeRateSight = fovScale
+                outer.SpeedRateSight = speedScale
+                outer.CrouchRate = 1.0
+                outer.ProneRate = 1.0
             end
+            if shootComp.AutoAimingConfig.InnerRange then
+                local inner = shootComp.AutoAimingConfig.InnerRange
+                inner.Speed = speedScale
+                inner.SpeedRate = speedScale
+                inner.RangeRate = fovScale
+                inner.RangeRateSight = fovScale
+                inner.SpeedRateSight = speedScale
+                inner.CrouchRate = 1.0
+                inner.ProneRate = 1.0
+            end
+            shootComp.AutoAimingConfig = shootComp.AutoAimingConfig
         end
+
     end)
 end
+
 
 local function AttachAimbotTimer()
     pcall(function()
@@ -1693,7 +1826,7 @@ local function AttachAimbotTimer()
                     _G._AimbotCurrentPC = nil
                     return
                 end
-                ApplyHardAimbot()
+                ApplyHardAimbot(targetPlayer)
             end)
         end
     end)
@@ -1869,7 +2002,7 @@ pcall(function()
                     UI = AliasMap.Switcher,
                     Text = "Màu Khi Kẻ Địch Ẩn/Hiện",
                     ExpandHandle = "ModMenu_ESP",
-                    Visible = function() return _G.nhhaiConfig.EnableEsp end, -- Chỉ hiện khi bật ESP
+                    Visible = function() return _G.nhhaiConfig.EnableEsp end,
                     GetFunc = function() return _G.nhhaiConfig.EnableVisColor end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.EnableVisColor = value
@@ -1879,26 +2012,38 @@ pcall(function()
             }
             local ModMenuAim = {
                 {
+                    Key = "ModMenu_Global_Cheats",
+                    UI = AliasMap.TitleSwitcher,
+                    Text = "KÍCH HOẠT HỆ THỐNG AIM",
+                    GetFunc = function() return _G.CheatsEnabled end,
+                    SetFunc = function(_, value)
+                        _G.CheatsEnabled = value
+                        return true
+                    end
+                },
+                {
                     Key = "ModMenu_Aimbot",
                     UI = AliasMap.TitleSwitcher,
-                    Text = "Aimbot",
+                    Text = "Tự Động Ngắm (Auto Aim)",
                     ExpandIndex = 0,
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.EnableAutoAim end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.EnableAutoAim = value
                         return true 
                     end
                 },
+                -- VỊ TRÍ MỤC TIÊU (BONES)
                 {
                     Key = "ModMenu_Bones_Title", 
                     UI = AliasMap.Title, 
-                    Text = "Chọn Aim", 
+                    Text = "Vị Trí Mục Tiêu (Xương)", 
                     ExpandHandle = "ModMenu_Aimbot" 
                 },
                 {
                     Key = "ModMenu_Aim_Head",
                     UI = AliasMap.Switcher,
-                    Text = "Aim Đầu",
+                    Text = "Mục Tiêu: Đầu",
                     ExpandHandle = "ModMenu_Aimbot",
                     GetFunc = function() return _G.nhhaiConfig.AutoAimBone == "Head" end,
                     SetFunc = function(c, v) 
@@ -1909,7 +2054,7 @@ pcall(function()
                 {
                     Key = "ModMenu_Aim_Neck",
                     UI = AliasMap.Switcher,
-                    Text = "Aim Bụng",
+                    Text = "Mục Tiêu: Bụng",
                     ExpandHandle = "ModMenu_Aimbot",
                     GetFunc = function() return _G.nhhaiConfig.AutoAimBone == "neck_01" end,
                     SetFunc = function(c, v) 
@@ -1920,7 +2065,7 @@ pcall(function()
                 {
                     Key = "ModMenu_Aim_Pelvis",
                     UI = AliasMap.Switcher,
-                    Text = "Aim Chân",
+                    Text = "Mục Tiêu: Chân",
                     ExpandHandle = "ModMenu_Aimbot",
                     GetFunc = function() return _G.nhhaiConfig.AutoAimBone == "pelvis" end,
                     SetFunc = function(c, v) 
@@ -1928,17 +2073,146 @@ pcall(function()
                         return true 
                     end
                 },
+                -- VỊ TRÍ KHÓA TÂM (TYPE TARGET)
+                {
+                    Key = "ModMenu_TypeTarget_Title", 
+                    UI = AliasMap.Title, 
+                    Text = "Vị Trí Khóa Tâm (Chiều Cao)", 
+                    ExpandHandle = "ModMenu_Aimbot" 
+                },
+                {
+                    Key = "ModMenu_Target_Head",
+                    UI = AliasMap.Switcher,
+                    Text = "Khóa: HEAD",
+                    ExpandHandle = "ModMenu_Aimbot",
+                    GetFunc = function() return (_G.nhhaiConfig.TypeTarget or "HEAD") == "HEAD" end,
+                    SetFunc = function(c, v) 
+                        if v then _G.nhhaiConfig.TypeTarget = "HEAD" end
+                        return true 
+                    end
+                },
+                {
+                    Key = "ModMenu_Target_Chest",
+                    UI = AliasMap.Switcher,
+                    Text = "Khóa: CHEST",
+                    ExpandHandle = "ModMenu_Aimbot",
+                    GetFunc = function() return _G.nhhaiConfig.TypeTarget == "CHEST" end,
+                    SetFunc = function(c, v) 
+                        if v then _G.nhhaiConfig.TypeTarget = "CHEST" end
+                        return true 
+                    end
+                },
+                {
+                    Key = "ModMenu_Target_Body",
+                    UI = AliasMap.Switcher,
+                    Text = "Khóa: BODY",
+                    ExpandHandle = "ModMenu_Aimbot",
+                    GetFunc = function() return _G.nhhaiConfig.TypeTarget == "BODY" end,
+                    SetFunc = function(c, v) 
+                        if v then _G.nhhaiConfig.TypeTarget = "BODY" end
+                        return true 
+                    end
+                },
+                -- ĐÓN ĐẦU & ĐỘ DỐC ĐẠN (PREDICTION)
+                {
+                    Key = "ModMenu_Prediction_Title", 
+                    UI = AliasMap.Title, 
+                    Text = "Dự Đoán & Bù Trừ Tọa Độ", 
+                    ExpandHandle = "ModMenu_Aimbot" 
+                },
+                {
+                    Key = "ModMenu_DisablePred",
+                    UI = AliasMap.Switcher,
+                    Text = "Tắt Dự Đoán Đường Đạn",
+                    ExpandHandle = "ModMenu_Aimbot",
+                    GetFunc = function() return _G.nhhaiConfig.DisablePrediction or false end,
+                    SetFunc = function(_, value)
+                        _G.nhhaiConfig.DisablePrediction = value
+                        return true
+                    end
+                },
+                {
+                    Key = "ModMenu_ProtectionValue",
+                    UI = AliasMap.Slider,
+                    Text = "Gia Tốc Bù Rơi Đạn (x10)",
+                    Min = 0,
+                    Max = 200, -- Ví dụ 98 ứng với 9.8
+                    IsPercent = false,
+                    ExpandHandle = "ModMenu_Aimbot",
+                    GetFunc = function() 
+                        return math.floor((_G.nhhaiConfig.ProtectionValue or 9.8) * 10)
+                    end,
+                    SetFunc = function(_, value)
+                        _G.nhhaiConfig.ProtectionValue = value / 10
+                        return true
+                    end
+                },
+                -- GIẢM GIẬT (RECOIL)
+                {
+                    Key = "ModMenu_Recoil_Title", 
+                    UI = AliasMap.Title, 
+                    Text = "Cơ Chế Ghì Tâm Giảm Giật", 
+                    ExpandHandle = "ModMenu_Aimbot" 
+                },
+                {
+                    Key = "ModMenu_DisableRecoil",
+                    UI = AliasMap.Switcher,
+                    Text = "Tắt Ghì Tâm Tự Động",
+                    ExpandHandle = "ModMenu_Aimbot",
+                    GetFunc = function() return _G.nhhaiConfig.DisableRecoilCompensation or false end,
+                    SetFunc = function(_, value)
+                        _G.nhhaiConfig.DisableRecoilCompensation = value
+                        return true
+                    end
+                },
+                {
+                    Key = "ModMenu_RecoilValue",
+                    UI = AliasMap.Slider,
+                    Text = "Độ Ghì Tâm (x10)",
+                    Min = 0,
+                    Max = 50, -- Ví dụ 15 ứng với 1.5
+                    IsPercent = false,
+                    ExpandHandle = "ModMenu_Aimbot",
+                    GetFunc = function() 
+                        return math.floor((_G.nhhaiConfig.RecoilCompensationValue or 1.5) * 10)
+                    end,
+                    SetFunc = function(_, value)
+                        _G.nhhaiConfig.RecoilCompensationValue = value / 10
+                        return true
+                    end
+                },
+                -- CẤU HÌNH THÔNG SỐ CƠ BẢN
+                {
+                    Key = "ModMenu_Specs_Title", 
+                    UI = AliasMap.Title, 
+                    Text = "Thông Số Khóa Tâm", 
+                    ExpandHandle = "ModMenu_Aimbot" 
+                },
+                {
+                    Key = "ModMenu_AimbotSmoothness",
+                    UI = AliasMap.Slider,
+                    Text = "Độ Mượt (Smoothness)",
+                    Min = 1,
+                    Max = 30,
+                    IsPercent = false,
+                    ExpandHandle = "ModMenu_Aimbot",
+                    GetFunc = function() 
+                        return _G.nhhaiConfig.AimbotSmoothness or 1
+                    end,
+                    SetFunc = function(_, value)
+                        _G.nhhaiConfig.AimbotSmoothness = math.floor(value)
+                        return true
+                    end
+                },
                 {
                     Key = "ModMenu_AimbotStrength",
                     UI = AliasMap.Slider,
-                    Text = "Tốc Độ Aimbot",
+                    Text = "Tốc Độ Cân Bằng",
                     Min = 0,
                     Max = 100,
                     IsPercent = false,
                     ExpandHandle = "ModMenu_Aimbot",
-                    GetFunc = function() 
-                        return _G.nhhaiConfig.AimbotStrength or 50
-                    end,
+                    GetFunc = function() return _G.nhhaiConfig.AimbotStrength or 50 end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.AimbotStrength = math.floor(value)
                         return true
@@ -1947,24 +2221,35 @@ pcall(function()
                 {
                     Key = "ModMenu_AimbotFov",
                     UI = AliasMap.Slider,
-                    Text = "Aimbot Fov",
+                    Text = "Phạm Vi Quét (FOV)",
                     Min = 0,
                     Max = 100,
                     IsPercent = false,
                     ExpandHandle = "ModMenu_Aimbot",
-                    GetFunc = function() 
-                        return _G.nhhaiConfig.Aimbot_Fov or 50
-                    end,
+                    GetFunc = function() return _G.nhhaiConfig.Aimbot_Fov or 50 end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.Aimbot_Fov = math.floor(value)
                         return true
                     end
                 },
                 {
+                    Key = "ModMenu_ModifyEngine",
+                    UI = AliasMap.Switcher,
+                    Text = "Chỉnh Sửa Config Engine",
+                    ExpandHandle = "ModMenu_Aimbot",
+                    GetFunc = function() return _G.nhhaiConfig.ModifyEngineConfig ~= false end, -- mặc định true
+                    SetFunc = function(_, value)
+                        _G.nhhaiConfig.ModifyEngineConfig = value
+                        return true
+                    end
+                },
+                -- MAGIC BULLET
+                {
                     Key = "ModMenu_MagicBullet",
                     UI = AliasMap.TitleSwitcher,
-                    Text = "Magic Bullet",
+                    Text = "Hỗ Trợ Quỹ Đạo Đạn",
                     ExpandIndex = 0,
+                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.EnableMagicbullet end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.EnableMagicbullet = value
@@ -1974,14 +2259,12 @@ pcall(function()
                 {
                     Key = "ModMenu_MagicHead",
                     UI = AliasMap.Slider,
-                    Text = "Magic Đầu",
+                    Text = "Tỷ Lệ Trúng Đầu",
                     Min = 0,
                     Max = 100,
                     IsPercent = false,
                     ExpandHandle = "ModMenu_MagicBullet",
-                    GetFunc = function() 
-                        return _G.nhhaiConfig.MagicHead or 40
-                    end,
+                    GetFunc = function() return _G.nhhaiConfig.MagicHead or 40 end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.MagicHead = math.floor(value)
                         return true
@@ -1990,14 +2273,12 @@ pcall(function()
                 {
                     Key = "ModMenu_MagicBody",
                     UI = AliasMap.Slider,
-                    Text = "Magic Thân Trên",
+                    Text = "Tỷ Lệ Trúng Thân Trên",
                     Min = 0,
                     Max = 100,
                     IsPercent = false,
                     ExpandHandle = "ModMenu_MagicBullet",
-                    GetFunc = function() 
-                        return _G.nhhaiConfig.MagicBody or 40
-                    end,
+                    GetFunc = function() return _G.nhhaiConfig.MagicBody or 40 end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.MagicBody = math.floor(value)
                         return true
@@ -2006,14 +2287,12 @@ pcall(function()
                 {
                     Key = "ModMenu_MagicLess",
                     UI = AliasMap.Slider,
-                    Text = "Magic Thân Dưới",
+                    Text = "Tỷ Lệ Trúng Thân Dưới",
                     Min = 0,
                     Max = 100,
                     IsPercent = false,
                     ExpandHandle = "ModMenu_MagicBullet",
-                    GetFunc = function() 
-                        return _G.nhhaiConfig.MagicLess or 40
-                    end,
+                    GetFunc = function() return _G.nhhaiConfig.MagicLess or 40 end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.MagicLess = math.floor(value)
                         return true
@@ -2021,22 +2300,22 @@ pcall(function()
                 }
             }
             local ModMenuOther = {
-                { UI = AliasMap.Title, Text = "SETTING" },
+                { UI = AliasMap.Title, Text = "CẤU HÌNH HỆ THỐNG" },
                 {
                     Key = "FPS165",
                     UI = AliasMap.TitleSwitcher,
-                    Text = "165 FPS",
+                    Text = "Mở Khóa 165 FPS",
                     GetFunc = function() return _G.nhhaiConfig.FPS165_Enabled end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.FPS165_Enabled = value
-                        if value then _G.Enable165FPSLogic() end
+                        if value and type(_G.Enable165FPSLogic) == "function" then _G.Enable165FPSLogic() end
                         return true
                     end
                 },
                 {
                     Key = "NoGrass",
                     UI = AliasMap.TitleSwitcher,
-                    Text = "Xóa Cỏ",
+                    Text = "Tối Ưu Hóa Cỏ (Xóa Cỏ)",
                     GetFunc = function() return _G.nhhaiConfig.NoGrass_Enabled end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.NoGrass_Enabled = value
@@ -2055,35 +2334,33 @@ pcall(function()
                 {
                     Key = "Blacksky",
                     UI = AliasMap.TitleSwitcher,
-                    Text = "Trời Tối",
+                    Text = "Chế Độ Trời Tối",
                     GetFunc = function() return _G.nhhaiConfig.BlackSky end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.BlackSky = value
-                        SetBlackSky(true)
+                        if type(_G.SetBlackSky) == "function" then SetBlackSky(value) end
                         return true
                     end
                 },
                 {
                     Key = "iPadView",
                     UI = AliasMap.TitleSwitcher,
-                    Text = "IPAD VIEW",
+                    Text = "Chế Độ Xem Rộng (iPad View)",
                     GetFunc = function() return _G.nhhaiConfig.iPadView_Enabled end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.iPadView_Enabled = value
-                        if value then _G.EnableiPadViewUI() end
+                        if value and type(_G.EnableiPadViewUI) == "function" then _G.EnableiPadViewUI() end
                         return true
                     end
                 },
                 {
                     Key = "iPadFOV",
                     UI = AliasMap.Slider,
-                    Text = "iPad View",
+                    Text = "Khoảng Cách Camera",
                     Min = 90,
                     Max = 150,
                     IsPercent = false,
-                    GetFunc = function() 
-                        return _G.nhhaiConfig.iPadViewDistance or 90
-                    end,
+                    GetFunc = function() return _G.nhhaiConfig.iPadViewDistance or 90 end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.iPadViewDistance = math.floor(value)
                         return true
@@ -2095,14 +2372,15 @@ pcall(function()
                 loc = "NHU HAI MOD",
                 UIKey = "Setting_Page_Privacy", 
                 Category = {
-                    { Key = "ModMenu_Main", loc = "Esp", Stack = ModMenuEsp },
-                    { Key = "ModMenu_Aim", loc = "Aim", Stack = ModMenuAim },
-                    { Key = "ModMenu_Other",loc = "Khác", Stack = ModMenuOther }
+                    { Key = "ModMenu_Main", loc = "Hiển Thị (ESP)", Stack = ModMenuEsp },
+                    { Key = "ModMenu_Aim", loc = "Hỗ Trợ Ngắm", Stack = ModMenuAim },
+                    { Key = "ModMenu_Other", loc = "Tùy Chọn Khác", Stack = ModMenuOther }
                 }
             }
             
             table.insert(SettingCatalog, SettingPageDefine.ModMenu)
         end
+
 
         local UIManager = _G.UIManager
         if UIManager and not UIManager._IsModMenuHooked then
