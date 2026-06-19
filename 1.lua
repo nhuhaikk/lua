@@ -1130,6 +1130,157 @@ function SetBlackSky(enabled)
         end
     end)
 end
+
+local AK_Aimbot = {}
+
+AK_Aimbot.Config = {
+    Enable = true,
+    Target = "Head", 
+    AimBy = "Crosshair", 
+    Trigger = "Shooting",
+    Radius = 150, 
+    Range = 300, 
+    Prediction = true, 
+    RecoilSet = 1.2, 
+    IgnoreKnocked = true, 
+    IgnoreBot = false, 
+    VisCheck = true, 
+    AimSmooth = 6.0 
+}
+
+local KismetMathLibrary = import("KismetMathLibrary")
+local GameplayData = require("GameLua.GameCore.Data.GameplayData")
+
+local function IsInsideFOV(screenX, screenY, centerX, centerY, radius)
+    local dx = screenX - centerX
+    local dy = screenY - centerY
+    return (dx * dx + dy * dy) <= (radius * radius)
+end
+
+function AK_Aimbot:GetTarget(uLocalPlayer, uPlayerController)
+    local bestTarget = nil
+    local minValue = 10000000
+
+    local CharacterList = GameplayData.GetCharacterList()
+    if not CharacterList then return nil end
+    local screenSizeX, screenSizeY = 1920, 1080
+    if uPlayerController.PlayerCameraManager then
+    end
+    local centerX, centerY = screenSizeX / 2, screenSizeY / 2
+
+    for i = 1, #CharacterList do
+        local Player = CharacterList[i]
+        
+        if slua.isValid(Player) and Player ~= uLocalPlayer and Player.TeamID ~= uLocalPlayer.TeamID and Player:IsAlive() then
+            
+            if self.Config.IgnoreKnocked and Player.Health <= 0 then goto continue end
+            if self.Config.IgnoreBot and Player.bIsAI then goto continue end
+           
+            local dist = uLocalPlayer:GetDistanceTo(Player) / 100.0
+            if dist > self.Config.Range then goto continue end
+           
+            local headPos = Player.Mesh:GetSocketLocation("head")
+            
+            if self.Config.VisCheck then
+                if not uPlayerController:LineOfSightTo(Player, headPos, false) then goto continue end
+            end
+            if self.Config.AimBy == "Distance" then
+                if dist < minValue then
+                    minValue = dist
+                    bestTarget = Player
+                end
+            elseif self.Config.AimBy == "Crosshair" then
+                local bSuccess, screenPos = uPlayerController:ProjectWorldLocationToScreen(headPos, false)
+                if bSuccess then
+                    if IsInsideFOV(screenPos.X, screenPos.Y, centerX, centerY, self.Config.Radius) then
+                        local distToCenter = math.sqrt((screenPos.X - centerX)^2 + (screenPos.Y - centerY)^2)
+                        if distToCenter < minValue then
+                            minValue = distToCenter
+                            bestTarget = Player
+                        end
+                    end
+                end
+            end
+            
+            ::continue::
+        end
+    end
+    
+    return bestTarget
+end
+
+function AK_Aimbot:Run(uLocalPlayer, uPlayerController)
+    if not self.Config.Enable then return end
+    if not slua.isValid(uLocalPlayer) or not slua.isValid(uPlayerController) then return end
+    local isShooting = uLocalPlayer.bIsWeaponFiring or false
+    local isScoping = uLocalPlayer.bIsGunADS or false
+    local triggerOk = false
+
+    if self.Config.Trigger == "Shooting" then triggerOk = isShooting
+    elseif self.Config.Trigger == "Scoping" then triggerOk = isScoping
+    elseif self.Config.Trigger == "Both" then triggerOk = (isShooting and isScoping)
+    elseif self.Config.Trigger == "Any" then triggerOk = (isShooting or isScoping)
+    end
+
+    if not triggerOk then return end
+
+    local Target = self:GetTarget(uLocalPlayer, uPlayerController)
+    if not Target then return end
+
+    local targetAimPos
+    if self.Config.Target == "Head" then
+        targetAimPos = Target.Mesh:GetSocketLocation("head")
+        targetAimPos.Z = targetAimPos.Z - 9.0
+    else
+        targetAimPos = Target.Mesh:GetSocketLocation("neck_01")
+    end
+
+    if self.Config.Prediction then
+        local currentWeapon = uLocalPlayer:GetCurrentWeapon()
+        if slua.isValid(currentWeapon) then
+            local weaponComp = currentWeapon.ShootWeaponComponent or currentWeapon.ShootWeaponEntity_GEN_VARIABLE
+            local shootEntity = weaponComp and weaponComp.ShootWeaponEntityComponent or currentWeapon.ShootWeaponEntity
+            
+            if shootEntity and shootEntity.BulletRange and shootEntity.BulletRange > 0.0001 then
+                local dist = uLocalPlayer:GetDistanceTo(Target)
+                local timeToTravel = dist / shootEntity.BulletRange
+                
+                local vel = FVector(0,0,0)
+                if Target.CurrentVehicle and slua.isValid(Target.CurrentVehicle) then
+                    vel = Target.CurrentVehicle.ReplicatedMovement.LinearVelocity
+                else
+                    vel = Target:GetVelocity()
+                end
+                
+                targetAimPos.X = targetAimPos.X + (vel.X * timeToTravel)
+                targetAimPos.Y = targetAimPos.Y + (vel.Y * timeToTravel)
+                targetAimPos.Z = targetAimPos.Z + (vel.Z * timeToTravel)
+            end
+        end
+    end
+
+    if self.Config.RecoilSet > 0 and isShooting and isScoping then
+        local distM = uLocalPlayer:GetDistanceTo(Target) / 100.0
+        targetAimPos.Z = targetAimPos.Z - (distM * self.Config.RecoilSet)
+    end
+
+    local camManager = uPlayerController.PlayerCameraManager
+    if slua.isValid(camManager) then
+        local cameraLoc = camManager:GetCameraLocation()
+       
+        local desiredRot = KismetMathLibrary.FindLookAtRotation(cameraLoc, targetAimPos)
+
+        if self.Config.AimSmooth > 0 then
+            local UGameplayStatics = import("GameplayStatics")
+            local currentRot = uPlayerController:GetControlRotation()
+
+            desiredRot = KismetMathLibrary.RInterpTo(currentRot, desiredRot, UGameplayStatics.GetWorldDeltaSeconds(uLocalPlayer), self.Config.AimSmooth)
+        end
+        uPlayerController:SetControlRotation(desiredRot)
+    end
+end
+
+return AK_Aimbot
 -- ==================== ESP ==================== 
 local SecurityCommonUtils = require("GameLua.Mod.BaseMod.Common.Security.SecurityCommonUtils")
 local ASTExtraPlayerController = import("/Script/ShadowTrackerExtra.STExtraPlayerController")
@@ -2151,7 +2302,6 @@ pcall(function()
                     UI = AliasMap.TitleSwitcher,
                     Text = "Hỗ Trợ Quỹ Đạo Đạn",
                     ExpandIndex = 0,
-                    ExpandHandle = "ModMenu_Global_Cheats",
                     GetFunc = function() return _G.nhhaiConfig.EnableMagicbullet end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.EnableMagicbullet = value
@@ -2203,6 +2353,7 @@ pcall(function()
             }
             local ModMenuOther = {
                 { UI = AliasMap.Title, Text = "CẤU HÌNH HỆ THỐNG" },
+
                 {
                     Key = "FPS165",
                     UI = AliasMap.TitleSwitcher,
@@ -2214,25 +2365,18 @@ pcall(function()
                         return true
                     end
                 },
+
                 {
                     Key = "NoGrass",
                     UI = AliasMap.TitleSwitcher,
-                    Text = "Tối Ưu Hóa Cỏ (Xóa Cỏ)",
+                    Text = "Tối Ưu Hóa Cỏ",
                     GetFunc = function() return _G.nhhaiConfig.NoGrass_Enabled end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.NoGrass_Enabled = value
-                        if value then
-                            pcall(function()
-                                local gi = slua_GameFrontendHUD and slua_GameFrontendHUD:GetGameInstance()
-                                if gi then
-                                    gi:ExecuteCMD("grass.DensityScale", "0")
-                                    gi:ExecuteCMD("grass.DiscardDataOnLoad", "1")
-                                end
-                            end)
-                        end
                         return true
                     end
                 },
+
                 {
                     Key = "Blacksky",
                     UI = AliasMap.TitleSwitcher,
@@ -2244,6 +2388,7 @@ pcall(function()
                         return true
                     end
                 },
+
                 {
                     Key = "iPadView",
                     UI = AliasMap.TitleSwitcher,
@@ -2251,10 +2396,10 @@ pcall(function()
                     GetFunc = function() return _G.nhhaiConfig.iPadView_Enabled end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.iPadView_Enabled = value
-                        if value and type(_G.EnableiPadViewUI) == "function" then _G.EnableiPadViewUI() end
                         return true
                     end
                 },
+
                 {
                     Key = "iPadFOV",
                     UI = AliasMap.Slider,
@@ -2265,6 +2410,73 @@ pcall(function()
                     GetFunc = function() return _G.nhhaiConfig.iPadViewDistance or 90 end,
                     SetFunc = function(_, value)
                         _G.nhhaiConfig.iPadViewDistance = math.floor(value)
+                        return true
+                    end
+                },
+
+
+                { UI = AliasMap.Title, Text = "CẤU HÌNH AIM" },
+
+                {
+                    Key = "AimEnable",
+                    UI = AliasMap.TitleSwitcher,
+                    Text = "Bật Hỗ Trợ Ngắm",
+                    GetFunc = function() return self.Config.AimEnable end,
+                    SetFunc = function(_, value)
+                        self.Config.AimEnable = value
+                        return true
+                    end
+                },
+
+                {
+                    Key = "AimRadius",
+                    UI = AliasMap.Slider,
+                    Text = "Vùng Ngắm",
+                    Min = 50,
+                    Max = 300,
+                    IsPercent = false,
+                    GetFunc = function() return self.Config.AimRadius or 150 end,
+                    SetFunc = function(_, value)
+                        self.Config.AimRadius = math.floor(value)
+                        return true
+                    end
+                },
+
+                {
+                    Key = "AimSmooth",
+                    UI = AliasMap.Slider,
+                    Text = "Độ Mượt",
+                    Min = 1,
+                    Max = 10,
+                    IsPercent = false,
+                    GetFunc = function() return self.Config.AimSmooth or 6 end,
+                    SetFunc = function(_, value)
+                        self.Config.AimSmooth = value
+                        return true
+                    end
+                },
+
+                {
+                    Key = "Prediction",
+                    UI = AliasMap.TitleSwitcher,
+                    Text = "Dự Đoán",
+                    GetFunc = function() return self.Config.Prediction end,
+                    SetFunc = function(_, value)
+                        self.Config.Prediction = value
+                        return true
+                    end
+                },
+
+                {
+                    Key = "Recoil",
+                    UI = AliasMap.Slider,
+                    Text = "Giảm Rung",
+                    Min = 0,
+                    Max = 5,
+                    IsPercent = false,
+                    GetFunc = function() return self.Config.Recoil or 1 end,
+                    SetFunc = function(_, value)
+                        self.Config.Recoil = value
                         return true
                     end
                 }
