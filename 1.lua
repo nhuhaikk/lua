@@ -1,673 +1,900 @@
--- KNOX MOD MENU V8 - ULTIMATE EDITION (FULLY WORKING)
--- Fixed: Wallhack, iPad View, Aimbot, ESP, and all features
--- Mod Menu System: KNOX Style
+-- ============================================
+-- TAKORO LUA - FULL DEOBFUSCATED
+-- Telegram: @Bang_Anca
+-- ============================================
 
-do
-    local pc = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
-    if _G._MOD_LOADED_V8 and _G._MOD_PC_V8 == pc then return end
-    _G._MOD_LOADED_V8 = true
-    _G._MOD_PC_V8 = pc
+local class = require("class")
+local CharacterBase = require("GameLua.GameCore.Framework.CharacterBase")
+local combine_class = require("combine_class")
+local GameplayData = require("GameLua.GameCore.Data.GameplayData")
+local InGameMarkTools = require("GameLua.Mod.BaseMod.Common.InGameMarkTools")
+local SecurityCommonUtils = require("GameLua.Mod.BaseMod.Common.Security.SecurityCommonUtils")
+
+local ENetRole = import("ENetRole")
+local EPawnState = import("EPawnState")
+local KismetMathLibrary = import("KismetMathLibrary")
+local GameplayStatics = import("GameplayStatics")
+
+-- ============================================
+-- EXPIRY SYSTEM
+-- ============================================
+local EXPIRY_TIMESTAMP = os.time({ year = 2026, month = 6, day = 27, hour = 0, min = 0, sec = 0 })
+
+local function FormatTimeRemaining(sec)
+    if sec <= 0 then return "EXPIRED" end
+    local days = math.floor(sec / 86400); sec = sec % 86400
+    local hours = math.floor(sec / 3600); sec = sec % 3600
+    local minutes = math.floor(sec / 60)
+    local seconds = sec % 60
+    return string.format("%02dD %02dH %02dM %02dS", days, hours, minutes, seconds)
 end
 
--- ==================== INITIALIZE CONFIG ====================
-_G.LexusConfig = _G.LexusConfig or {
-    -- VISUAL MODS
-    EnableFOV = false,
-    FOVValue = 90,
-    EnableNoGrass = false,
-    EnableBlackSky = false,
-    
-    -- COMBAT MODS
-    EnableMagic = false,
-    MagicLevel = 70,
-    EnableAutoAim = false,
-    AutoAimBone = "Head",
-    EnableAiming = false,
-    AimingLevel = "LOW",
-    EnableNoRecoil = false,
-    EnableNoShake = false,
-    RecoilLevel = "LESS",
-    
-    -- WEAPON MODS
-    EnableWeaponMod = false,
-    WeaponMod = {
-        [101001] = {FireSpeed = false, InstanHit = false, FastSwitch = false, FastScope = false},
-        [101002] = {FireSpeed = false, InstanHit = false, FastSwitch = false, FastScope = false},
-        [101003] = {FireSpeed = false, InstanHit = false, FastSwitch = false, FastScope = false},
-        [101004] = {FireSpeed = false, InstanHit = false, FastSwitch = false, FastScope = false},
-        [101005] = {FireSpeed = false, InstanHit = false, FastSwitch = false, FastScope = false},
-        [101006] = {FireSpeed = false, InstanHit = false, FastSwitch = false, FastScope = false},
-        [101007] = {FireSpeed = false, InstanHit = false, FastSwitch = false, FastScope = false},
-        [101008] = {FireSpeed = false, InstanHit = false, FastSwitch = false, FastScope = false},
-        [101009] = {FireSpeed = false, InstanHit = false, FastSwitch = false, FastScope = false},
-        [101010] = {FireSpeed = false, InstanHit = false, FastSwitch = false, FastScope = false}
-    },
-    
-    -- NEW FEATURES
-    EnableWallhack = false,
-    EnableESP = false,
-    EnableSkinChanger = false,
-    Enable165FPS = true,
-    AimbotStrength = 50,
-    
-    -- CHAMS COLORS
-    EnableChamsGreen = false,
-    EnableChamsYellow = false,
-    ChamsGreenRGB = {R=0, G=255, B=0, A=255},
-    ChamsYellowRGB = {R=255, G=255, B=0, A=255}
+function CheckExpiration()
+    local now = os.time()
+    local remaining = EXPIRY_TIMESTAMP - now
+    if remaining <= 0 then
+        _G._MOD_EXPIRED = true
+        return false
+    end
+    _G._MOD_EXPIRED = false
+    _G._MOD_REMAINING_SECONDS = remaining
+    return true
+end
+
+-- ============================================
+-- POPUP CREDIT & AKTIVASI FITUR
+-- ============================================
+local function ShowCreditPopup(callback)
+    pcall(function()
+        local Msg = require("client.slua.logic.common.logic_common_msg_box")
+        local Web = require("client.slua.logic.url.logic_webview_sdk")
+        
+        local content = [[
+══════════════════════════════
+       TAKORO MOD VIP V11
+       KRAFTON SUNDALANU      
+══════════════════════════════
+        MOD BY: @Bang_Anca        
+       EXPIRED: 2026-06-23        
+══════════════════════════════
+       FITUR TERSEDIA:            
+      • AIMBOT (Auto Lock)        
+    • LESS RECOIL / ANTI GETAR    
+   • ANTI KEPALA (MODE ADS)       
+   • NO SHAKE / GETAR KAMERA      
+        • SMALL CROSSHAIR         
+    • IPAD VIEW (LEBIH LUAS)      
+       • WALLHACK (CHAMS)         
+           • BLACK SKY            
+      • HP BAR (PENANDA DARAH)    
+     • ANTI CHEAT BYPASS          
+══════════════════════════════
+]]
+
+
+        
+        Msg.Show(4, "INFORMATION", content, 
+            function() 
+                if callback then callback() end 
+            end, 
+            nil, 
+            "LANJUTKAN", "")
+    end)
+end
+
+-- ============================================
+-- POPUP AKTIVASI PER FITUR
+-- ============================================
+_G.TAKORO_Features = {
+    { id = "AIMBOT",           name = "AIMBOT",               val = 0, type = "switch" },
+    { id = "LESS_RECOIL",      name = "LESS RECOIL",          val = 0, type = "switch" },
+    { id = "ANTI_RECOIL_ADS",  name = "ANTI ATAS KEPALA",     val = 0, type = "switch" },
+    { id = "NO_SHAKE",         name = "NO SHAKE",             val = 0, type = "switch" },
+    { id = "SMALL_CROSS",      name = "SMALL CROWSAIR",    val = 0, type = "switch" },
+    { id = "IPAD_VIEW",        name = "IPAD VIEW",            val = 0, type = "switch" },
+    { id = "WALLHACK",         name = "WALLHACK",             val = 0, type = "switch" },
+    { id = "BLACK_SKY",         name = "BLACK SKY",             val = 0, type = "switch" },
+    { id = "HP_BAR",           name = "HP BAR",               val = 0, type = "switch" },
 }
 
-_G.LexusState = _G.LexusState or {}
-_G._MBones = _G._MBones or {}
+-- Konfigurasi dasar
+_G.ESPConfig = {
+    NoRecoilADS = false,
+    AntiShake = false,
+    CrossDeviation = false
+}
 
--- ==================== BYPASS FUNCTIONS ====================
-local function nop() return true end
-local function retFalse() return false end
-local function retZero() return 0 end
-local function retEmpty() return {} end
+local featureQueue = {}
+local isProcessingQueue = false
 
-function _G.TryBypassMD5()
-    if _G.MD5Bypassed then return end
+local function ShowFeatureActivationPopup(featureId, featureName, nextCallback)
     pcall(function()
-        require("client.client_entry")
-        if _G.NetUtil then
-            _G.NetUtil.check_dh_packet_key = function(packet_key, svr_packet_key_md5, from, dh_ext_info, bReportDSInfo)
-                if type(dh_ext_info) == "table" then
-                    dh_ext_info.packet_key_md5 = svr_packet_key_md5 or ""
-                    dh_ext_info.svr_packet_key_md5 = svr_packet_key_md5 or ""
+        local Msg = require("client.slua.logic.common.logic_common_msg_box")
+        
+        local content = string.format("AKTIFKAN %s?\n\n(Yes) FOR ENABLED FEATURES, (No) FOR FISABLED FEATURES.", featureName)
+        
+        Msg.Show(4, "FEATURES ACTIVATION", content,
+            function()
+                -- Aktifkan fitur
+                for _, f in ipairs(_G.TAKORO_Features) do
+                    if f.id == featureId then
+                        f.val = 1
+                        -- Sinkronkan ke ESPConfig
+                        if featureId == "ANTI_RECOIL_ADS" then _G.ESPConfig.NoRecoilADS = true end
+                        if featureId == "NO_SHAKE" then _G.ESPConfig.AntiShake = true end
+                        if featureId == "SMALL_CROSS" then _G.ESPConfig.CrossDeviation = true end
+                        break
+                    end
                 end
-                return true
-            end
-            _G.MD5Bypassed = true
-        end
-    end)
-end
-
-function _G.BypassCacheMD5()
-    if _G.CacheMD5Bypassed then return end
-    pcall(function()
-        local CacheMgr = require("common.CustomAsset.CustomAssetCacheManager")
-        if CacheMgr then
-            CacheMgr._UpdateAssetCacheState = function(self, AssetKey, SuffixType)
-                local CacheMetaInfo = self:GetCustomAssetCacheMetaInfo(AssetKey, SuffixType)
-                if CacheMetaInfo then
-                    CacheMetaInfo.CacheVerifyStatus = CustomAssetDefine.CustomAssetCacheVerifyStatus.Valid
+                -- Notifikasi
+                local Msg2 = require("client.slua.logic.common.logic_common_msg_box")
+                if Msg2 and Msg2.Show then
+                    Msg2.Show(2, "AKTIF!", string.format("%s TELAH AKTIF!", featureName), nil, nil, "OK", "")
                 end
-            end
-            _G.CacheMD5Bypassed = true
-        end
-    end)
-end
-
-_G.BypassSecurityUtils = function()
-    pcall(function()
-        local SecurityCommonUtils = require("GameLua.Mod.BaseMod.Common.Security.SecurityCommonUtils")        
-        if SecurityCommonUtils then
-            if SecurityCommonUtils.EStrategyTypeInReplay then
-                for k, v in pairs(SecurityCommonUtils.EStrategyTypeInReplay) do
-                    SecurityCommonUtils.EStrategyTypeInReplay[k] = 0
+                if nextCallback then nextCallback() end
+            end,
+            function()
+                -- Matikan fitur
+                for _, f in ipairs(_G.TAKORO_Features) do
+                    if f.id == featureId then
+                        f.val = 0
+                        if featureId == "ANTI_RECOIL_ADS" then _G.ESPConfig.NoRecoilADS = false end
+                        if featureId == "NO_SHAKE" then _G.ESPConfig.AntiShake = false end
+                        if featureId == "SMALL_CROSS" then _G.ESPConfig.CrossDeviation = false end
+                        break
+                    end
                 end
-            end
-            SecurityCommonUtils.LogIf = function(Condition, sFormat, ...) return false end
-            SecurityCommonUtils.IsFunctionCheckPass = function(FunctionOuter, sFuncName, ...) return true end
-            SecurityCommonUtils.IsHealthStatusHealthy = function(nHealthStatus) return true end
-            SecurityCommonUtils.IsHealthStatusAlive = function(nHealthStatus) return true end
-            SecurityCommonUtils.IsTrue = function(Value) return true end            
-            _G.SecurityCommonUtils = SecurityCommonUtils
-        end
+                if nextCallback then nextCallback() end
+            end,
+            "Yes", "No"
+        )
     end)
 end
 
-_G.BypassHiggsComponent = function()
-    pcall(function()
-        local HiggsComponentClass = require("GameLua.Mod.BaseMod.Common.Security.HiggsBosonComponent")        
-        if HiggsComponentClass then
-            local CHiggsBosonComponent = HiggsComponentClass
-            if type(HiggsComponentClass) == "table" and HiggsComponentClass.__index then
-                CHiggsBosonComponent = HiggsComponentClass.__index
-            end
-            CHiggsBosonComponent.StaticShowSecurityAlertInDev = function(uPlayerController, sMessage, bIsClientShowWindow, bSkipServer) return end
-            CHiggsBosonComponent._ClientShowSecurityAlertWindow = function(sMessage) return end
-            CHiggsBosonComponent._ReportChatRobot = function(sMessage, uHiggsBosonComponent) return end
-            CHiggsBosonComponent._ProcessReportChatRobotQueue = function() return end
-            CHiggsBosonComponent.RecordStrategyTimestampInReplay = function(nStrategyTypeInReplay, nValue, uController, nTimeInSecondsOffSet) return end
-            CHiggsBosonComponent.SendAntiDataFlow = function(self) return end
-            CHiggsBosonComponent.SendHitFireBtnFlow = function(self) return end
-            CHiggsBosonComponent.OnBattleResult = function(self) return end
-            CHiggsBosonComponent.SendHisarData = function() return end
-            if CHiggsBosonComponent.ClientRPC then
-                CHiggsBosonComponent.ClientRPC.RPC_Client_ShowSecurityAlertWindow = function(self, sMessage) return end
-                CHiggsBosonComponent.ClientRPC.RPC_Client_ServerNameAck = function(self) return end
-            end
-            if CHiggsBosonComponent.ServerRPC then
-                CHiggsBosonComponent.ServerRPC.RPC_Server_TellServerName = function(self, sServerName) return end
-            end
-        end
-    end)
-end
-
--- ==================== IPAD VIEW / FOV (FIXED) ====================
-function _G.SetFOV(value)
-    pcall(function()
-        local player = GameplayData.GetPlayerCharacter()
-        if not slua.isValid(player) then return end
-        
-        -- Third person camera
-        local camera = player.ThirdPersonCameraComponent
-        if slua.isValid(camera) then
-            camera:SetFieldOfView(value)
-        end
-        
-        -- Also try first person camera if exists
-        local fpCamera = player.FirstPersonCameraComponent
-        if slua.isValid(fpCamera) then
-            fpCamera:SetFieldOfView(value)
-        end
-        
-        -- Execute console command as backup
-        local gi = slua_GameFrontendHUD and slua_GameFrontendHUD:GetGameInstance()
-        if gi then
-            gi:ExecuteCMD("fov", tostring(value))
-        end
-    end)
-end
-
--- ==================== WEAPON MODS ====================
-_G.otherWeapon = function()
-    if not _G.LexusConfig.EnableWeaponMod then return end
-    pcall(function()
-        local player = GameplayData.GetPlayerCharacter()
-        if not slua.isValid(player) then return end
-        local weaponManager = player.WeaponManagerComponent
-        if not slua.isValid(weaponManager) then return end
-        local currentWeapon = weaponManager.CurrentWeaponReplicated
-        if not slua.isValid(currentWeapon) then return end
-        local shootComp = currentWeapon.ShootWeaponEntityComp
-        if not slua.isValid(shootComp) then return end
-        local wid = shootComp.WeaponID
-        if type(wid) ~= "number" then return end
-        local cfg = _G.LexusConfig.WeaponMod[wid]
-        if not cfg then return end
-        if cfg.FireSpeed then shootComp.ShootInterval = 0.07 end
-        if cfg.InstanHit then shootComp.BulletFireSpeed = 130000 end
-        if cfg.FastSwitch then
-            shootComp.SwitchFromIdleToBackpackTime = 0
-            shootComp.SwitchFromBackpackToIdleTime = 0
-        end
-        if cfg.FastScope then shootComp.WeaponAimInTime = 7 end
-    end)
-end
-
--- ==================== MAGIC BULLET ====================
-_G.ResetHitbox = function()
-    pcall(function()
-        local allChars = Game:GetAllPlayerPawns()
-        if allChars then
-            for _, enemy in pairs(allChars) do
-                if slua.isValid(enemy) and slua.isValid(enemy.Mesh) then
-                    enemy.Mesh:RecreatePhysicsState()
-                    enemy.Mesh:UpdateBounds()
-                end
-            end
-        end
-        _G._MBones = {}
-    end)
-end
-
-_G.Magic = function()
-    if not _G.LexusConfig.EnableMagic then 
-        if _G._MBones and next(_G._MBones) ~= nil then _G.ResetHitbox() end
-        return 
-    end
-    pcall(function()
-        local char = GameplayData.GetPlayerCharacter()
-        if not slua.isValid(char) then return end
-        local allChars = Game:GetAllPlayerPawns()
-        if not allChars then return end
-        _G._MBones = _G._MBones or {}
-        local currentMagicScale = _G.LexusConfig.MagicLevel or 70
-        for _, enemy in pairs(allChars) do
-            pcall(function()
-                if not slua.isValid(enemy) or enemy == char or enemy.TeamID == char.TeamID then return end
-                local mesh = enemy.Mesh
-                if not slua.isValid(mesh) then return end
-                local physAsset = mesh.PhysicsAssetOverride
-                if not slua.isValid(physAsset) and slua.isValid(mesh.SkeletalMesh) then
-                    physAsset = mesh.SkeletalMesh.PhysicsAsset
-                end
-                if not slua.isValid(physAsset) then return end
-                local assetName = tostring((physAsset.GetName and physAsset:GetName()) or physAsset)
-                if _G._MBones[assetName] then return end
-                local setups = physAsset.SkeletalBodySetups
-                if not setups then return end
-                local scaleMap = { head = currentMagicScale, neck = currentMagicScale }
-                for i = 0, 60 do
-                    pcall(function()
-                        local bs = (type(setups.Get) == "function" and setups:Get(i)) or setups[i]
-                        if not bs or not slua.isValid(bs) then return end
-                        local boneName = tostring(bs.BoneName):lower()
-                        local scale = nil
-                        for pattern, value in pairs(scaleMap) do
-                            if string.find(boneName, pattern:lower()) then scale = value; break end
-                        end
-                        if not scale then return end
-                        local ag = bs.AggGeom
-                        if not ag then return end
-                        pcall(function()
-                            local box = ag.BoxElems
-                            if box then
-                                local elem = (type(box.Get) == "function" and box:Get(0)) or box[1]
-                                if elem then
-                                    elem.X, elem.Y, elem.Z = scale, scale, scale
-                                    if type(box.Set) == "function" then box:Set(0, elem) else box[1] = elem end
-                                end
-                            end
-                        end)
-                        pcall(function()
-                            local sphyl = ag.SphylElems
-                            if sphyl then
-                                local elem = (type(sphyl.Get) == "function" and sphyl:Get(0)) or sphyl[1]
-                                if elem then
-                                    if elem.Radius then elem.Radius = scale end
-                                    if elem.Length then elem.Length = scale end
-                                    if type(sphyl.Set) == "function" then sphyl:Set(0, elem) else sphyl[1] = elem end
-                                end
-                            end
-                        end)
-                    end)
-                end
-                pcall(function()
-                    mesh:RecreatePhysicsState()
-                    mesh:WakeAllRigidBodies()
-                    mesh:UpdateBounds()
-                end)
-                _G._MBones[assetName] = true
-            end)
-        end
-    end)
-end
-
--- ==================== AUTO AIM ====================
-_G.ApplyAutoAim = function()
-    local player = GameplayData.GetPlayerCharacter()
-    if not slua.isValid(player) then return end
-    local autoComp = player.AutoAimComp
-    if not autoComp then return end
-    if _G.LexusConfig.EnableAutoAim then
-        local targetBone = _G.LexusConfig.AutoAimBone or "Head"
-        autoComp.Bones = { targetBone, targetBone, targetBone }
-    else
-        autoComp.Bones = nil 
-    end
-end
-
--- ==================== AIMBOT (FIXED) ====================
-_G.ApplyAimingConfig = function()
-    pcall(function()
-        local player = GameplayData.GetPlayerCharacter()
-        if not slua.isValid(player) then return end
-        
-        local weaponManager = player.WeaponManagerComponent
-        if not slua.isValid(weaponManager) then return end
-        
-        local currentWeapon = weaponManager.CurrentWeaponReplicated
-        if not slua.isValid(currentWeapon) then return end
-        
-        local shootComp = currentWeapon.ShootWeaponEntityComp
-        if not slua.isValid(shootComp) then return end
-        
-        local strength = (_G.LexusConfig.AimbotStrength or 50) / 100
-        local level = _G.LexusConfig.AimingLevel or "LOW"
-        
-        -- Base values that multiply with strength
-        local speedVal = 3.5
-        local speedRateVal = 1.0
-        local rangeRateVal = 1.0
-        local centerSpeedVal = 0.5
-        
-        if level == "LOW" then
-            speedVal = 5.0 * strength
-            speedRateVal = 5.0 * strength
-            rangeRateVal = 1.0 * strength
-            centerSpeedVal = 3.0 * strength
-        elseif level == "MEDIUM" then
-            speedVal = 7.0 * strength
-            speedRateVal = 7.0 * strength
-            rangeRateVal = 2.0 * strength
-            centerSpeedVal = 5.0 * strength
-        elseif level == "HARD" then
-            speedVal = 10.0 * strength
-            speedRateVal = 10.0 * strength
-            rangeRateVal = 10.0 * strength
-            centerSpeedVal = 7.0 * strength
-        elseif level == "EXTREME" then
-            speedVal = 50.0 * strength
-            speedRateVal = 20.0 * strength
-            rangeRateVal = 20.0 * strength
-            centerSpeedVal = 15.0 * strength
-        end
-        
-        if not _G.LexusConfig.EnableAiming then
-            speedVal = 3.5
-            speedRateVal = 1.0
-            rangeRateVal = 1.0
-            centerSpeedVal = 0.5
-        end
-        
-        -- Apply auto aiming config if exists
-        if shootComp.AutoAimingConfig then
-            local cfg = shootComp.AutoAimingConfig
-            if cfg.OuterRange then
-                cfg.OuterRange.Speed = speedVal
-                cfg.OuterRange.SpeedRate = speedRateVal
-                cfg.OuterRange.RangeRate = rangeRateVal
-                cfg.OuterRange.CenterSpeedRate = centerSpeedVal
-            end
-            if cfg.InnerRange then
-                cfg.InnerRange.Speed = speedVal
-                cfg.InnerRange.SpeedRate = speedRateVal
-                cfg.InnerRange.RangeRate = rangeRateVal
-                cfg.InnerRange.CenterSpeedRate = centerSpeedVal
-            end
-        end
-        
-        -- Recoil reduction based on aimbot strength
-        if _G.LexusConfig.EnableAiming then
-            shootComp.GameDeviationFactor = 0.1 * (1 - strength * 0.8)
-            shootComp.RecoilKickADS = 0.15 * (1 - strength * 0.7)
-            shootComp.AccessoriesVRecoilFactor = 0.3 * (1 - strength * 0.6)
-            shootComp.AccessoriesHRecoilFactor = 0.3 * (1 - strength * 0.6)
-        end
-    end)
-end
-
--- ==================== NO RECOIL ====================
-_G.ApplyNoRecoil = function()
-    local player = GameplayData.GetPlayerCharacter()
-    if not slua.isValid(player) then return end
-    local weaponManager = player.WeaponManagerComponent
-    if not slua.isValid(weaponManager) then return end
-    local currentWeapon = weaponManager.CurrentWeaponReplicated
-    if not slua.isValid(currentWeapon) then return end
-    local shootComp = currentWeapon.ShootWeaponEntityComp
-    if not shootComp then return end
-
-    local level = (_G.LexusConfig.EnableNoRecoil and _G.LexusConfig.RecoilLevel) or "DEFAULT"
-    local r = shootComp.RecoilInfo
-
-    if level == "DEFAULT" then
-        shootComp.RecoilKickADS = 0.2
-        shootComp.AccessoriesHRecoilFactor = 0.5
-        shootComp.AccessoriesRecoveryFactor = 0.6
-        shootComp.AccessoriesVRecoilFactor = 0.5
-        if r then
-            r.VerticalRecoilMin = 0; r.VerticalRecoilMax = 7; r.VerticalRecoveryMax = 5
-            r.RecoilValueClimb = 0.75; r.RecoilValueFail = 2.2; r.VerticalRecoveryModifier = 0.5
-            r.RecovertySpeedVertical = 9; r.VerticalRecoveryClamp = 10
-            r.LeftMax = -0.8; r.RightMax = 0.8; r.HorizontalTendency = 0.1
-            r.RecoilHorizontalMinScalar = 0.1; r.RecoilSpeedHorizontal = 11; r.RecoilSpeedVertical = 11
-        end
-    elseif level == "LESS" then
-        shootComp.RecoilKickADS = 0
-        shootComp.AccessoriesHRecoilFactor = 0.1
-        shootComp.AccessoriesRecoveryFactor = 0.1
-        shootComp.AccessoriesVRecoilFactor = 0.1
-        if r then
-            r.VerticalRecoilMin = 0; r.VerticalRecoilMax = 1; r.VerticalRecoveryMax = 1
-            r.RecoilValueClimb = 0.1; r.RecoilValueFail = 1; r.VerticalRecoveryModifier = 0.1
-            r.RecovertySpeedVertical = 1; r.VerticalRecoveryClamp = 1
-            r.LeftMax = -0.1; r.RightMax = 0.1; r.HorizontalTendency = 0.05
-            r.RecoilHorizontalMinScalar = 0.05; r.RecoilSpeedHorizontal = 1; r.RecoilSpeedVertical = 1
-        end
-    elseif level == "NO" then
-        shootComp.RecoilKickADS = 0
-        shootComp.AccessoriesHRecoilFactor = 0
-        shootComp.AccessoriesRecoveryFactor = 0
-        shootComp.AccessoriesVRecoilFactor = 0
-        if r then
-            r.VerticalRecoilMin = 0; r.VerticalRecoilMax = 0; r.VerticalRecoveryMax = 0
-            r.RecoilValueClimb = 0; r.RecoilValueFail = 0; r.VerticalRecoveryModifier = 0
-            r.RecovertySpeedVertical = 0; r.VerticalRecoveryClamp = 0
-            r.LeftMax = 0; r.RightMax = 0; r.HorizontalTendency = 0
-            r.RecoilHorizontalMinScalar = 0; r.RecoilSpeedHorizontal = 0; r.RecoilSpeedVertical = 0
-        end
+local function ProcessFeatureQueue()
+    if isProcessingQueue then return end
+    if #featureQueue == 0 then
+        ShowMainMenu()
+        return
     end
     
-    if _G.LexusConfig.EnableNoShake then
+    isProcessingQueue = true
+    local nextFeature = table.remove(featureQueue, 1)
+    
+    ShowFeatureActivationPopup(nextFeature.id, nextFeature.name, function()
+        isProcessingQueue = false
+        ProcessFeatureQueue()
+    end)
+end
+
+local function ShowActivationSequence()
+    featureQueue = {
+        { id = "AIMBOT",           name = "AIMBOT" },
+        { id = "LESS_RECOIL",      name = "LESS RECOIL" },
+        { id = "ANTI_RECOIL_ADS",  name = "ANTI ATAS KEPALA" },
+        { id = "NO_SHAKE",         name = "NO SHAKE" },
+        { id = "SMALL_CROSS",      name = "SMALL CROWSAIR" },
+        { id = "IPAD_VIEW",        name = "IPAD VIEW" },
+        { id = "WALLHACK",         name = "WALLHACK" },
+        { id = "BLACK_SKY",         name = "BLACK SKY" },
+        { id = "HP_BAR",           name = "HP BAR" },
+    }
+    ProcessFeatureQueue()
+end
+
+-- ============================================
+-- MAIN MENU (TOGGLE MANUAL)
+-- ============================================
+local menuIndex = 1
+local isMenuActive = false
+
+local function ShowMainMenu()
+    pcall(function()
+        local Msg = require("client.slua.logic.common.logic_common_msg_box")
+        
+        local function buildMenuContent()
+            local content = "╔════════════════════════════════╗\n"
+            for i, f in ipairs(_G.TAKORO_Features) do
+                local arrow = (i == menuIndex) and "→ " or "  "
+                local status = (f.val == 1) and "[✓]" or "[ ]"
+                content = content .. string.format("║ %s %s %s %s║\n", arrow, status, f.name, string.rep(" ", 20 - #f.name))
+            end
+            content = content .. "╠════════════════════════════════╣\n"
+            content = content .. "║  CREDIT: @Bang_Anca         ║\n"
+            content = content .. "╚════════════════════════════════╝"
+            return content
+        end
+        
+        Msg.Show(4, "TAKORO LUA PAK MENU", buildMenuContent(),
+            function()
+                -- TOGGLE fitur
+                local current = _G.TAKORO_Features[menuIndex]
+                current.val = 1 - current.val
+                -- Sinkronkan ke ESPConfig
+                if current.id == "ANTI_RECOIL_ADS" then _G.ESPConfig.NoRecoilADS = (current.val == 1) end
+                if current.id == "NO_SHAKE" then _G.ESPConfig.AntiShake = (current.val == 1) end
+                if current.id == "SMALL_CROSS" then _G.ESPConfig.CrossDeviation = (current.val == 1) end
+                ShowMainMenu()
+            end,
+            function()
+                -- PILIH FITUR BERIKUTNYA
+                menuIndex = menuIndex + 1
+                if menuIndex > #_G.TAKORO_Features then
+                    menuIndex = 1
+                end
+                ShowMainMenu()
+            end,
+            "TOGGLE", "NEXT"
+        )
+    end)
+end
+
+function _G.TAKORO_GetVal(featureId)
+    for _, feature in ipairs(_G.TAKORO_Features) do
+        if feature.id == featureId then return feature.val end
+    end
+    return 0
+end
+
+-- ============================================
+-- EXPIRY POPUP
+-- ============================================
+local function ShowExpiryPopup(expired)
+    pcall(function()
+        local Msg = require("client.slua.logic.common.logic_common_msg_box")
+        local Web = require("client.slua.logic.url.logic_webview_sdk")
+        
+        local function onClick()
+            if Web then Web:OpenURL("https://t.me/Bang_Anca") end
+        end
+        
+        if expired then
+            local expiresAt = os.date("%d/%m/%Y %H:%M", EXPIRY_TIMESTAMP)
+            Msg.Show(4, "MOD EXPIRED",
+                "YOUR MOD HAS EXPIRED!\n\nExpired on: " .. expiresAt .. "\n\nContact @Bang_Anca for update", onClick)
+        else
+            local remaining = _G._MOD_REMAINING_SECONDS or (EXPIRY_TIMESTAMP - os.time())
+            local formatted = FormatTimeRemaining(remaining)
+            local expiresAt = os.date("%d/%m/%Y %H:%M", EXPIRY_TIMESTAMP)
+            Msg.Show(4, "MOD ACTIVE",
+                "TIME REMAINING:\n" .. formatted .. "\n\nExpires: " .. expiresAt .. "\n\nTelegram: @Bang_Anca", onClick)
+        end
+    end)
+end
+
+local WelcomeShown = false
+function _G.TryShowWelcome()
+    if WelcomeShown then return end
+    if not CheckExpiration() then
+        ShowExpiryPopup(true)
+        return
+    end
+    WelcomeShown = true
+    ShowCreditPopup(function()
+        ShowActivationSequence()
+    end)
+end
+
+-- ============================================
+-- MODUL INISIALISASI
+-- ============================================
+local function InitializeModules()
+    -- Tempat inisialisasi modul tambahan
+end
+
+-- ============================================
+-- ✅ FUNGSI PISAH SESUAI PERMINTAAN
+-- ============================================
+
+-- 1. LESS RECOIL
+function ApplyLessRecoil(enabled, shootComp)
+    if not slua.isValid(shootComp) then return end
+    if enabled then
+        shootComp.AccessoriesVRecoilFactor = 0.3
+        shootComp.AccessoriesHRecoilFactor = 0.3
+        
+        if shootComp.RecoilInfo then
+            shootComp.RecoilInfo.VerticalRecoilMin = 0
+            shootComp.RecoilInfo.VerticalRecoilMax = 0
+            shootComp.RecoilInfo.RecoilSpeedVertical = 0
+            shootComp.RecoilInfo.RecoilSpeedHorizontal = 0
+            shootComp.RecoilInfo.VerticalRecoveryMax = 0
+        end
+    else
+        shootComp.RecoilKick = 1.0
+        shootComp.RecoilKickADS = 1.0
+        shootComp.AnimationKick = 1.0
+        shootComp.AccessoriesVRecoilFactor = 1.0
+        shootComp.AccessoriesHRecoilFactor = 1.0
+    end
+end
+
+-- 2. ANTI ATAS KEPALA (Hanya saat ADS)
+function ApplyAntiRecoilADS(enabled, shootComp)
+    if not slua.isValid(shootComp) then return end
+    if enabled then
+        shootComp.RecoilKick = 0
+        shootComp.RecoilKickADS = 0
         shootComp.AnimationKick = 0
     end
 end
 
--- ==================== NO GRASS ====================
-_G.DisableGrass = function()
+-- 3. NO SHAKE / GETARAN KAMERA
+function ApplyNoShake(enabled, shootComp)
+    if not slua.isValid(shootComp) then return end
+    if enabled then
+        shootComp.AnimationKick = 0
+        if shootComp.CameraShakeScale then
+            shootComp.CameraShakeScale = 0
+        end
+    else
+        shootComp.AnimationKick = 1.0
+        if shootComp.CameraShakeScale then
+            shootComp.CameraShakeScale = 1.0
+        end
+    end
+end
+
+-- 4. KECILKAN LINTASAN / TANPA PENYEBARAN
+function ApplySmallCross(enabled, shootComp)
+    if not slua.isValid(shootComp) then return end
+    if enabled then
+        shootComp.GameDeviationFactor = 0
+        shootComp.GameDeviationAccuracy = 0
+        shootComp.ShotGunHorizontalSpread = 0
+        shootComp.ShotGunVerticalSpread = 0
+    else
+        shootComp.GameDeviationFactor = 1.0
+        shootComp.GameDeviationAccuracy = 1.0
+        shootComp.ShotGunHorizontalSpread = 1.0
+        shootComp.ShotGunVerticalSpread = 1.0
+    end
+end
+
+-- Fungsi utama pemanggil semua fitur recoil
+function ApplyAllRecoilFeatures()
+    InitializeModules()
     pcall(function()
-        local gi = slua_GameFrontendHUD and slua_GameFrontendHUD:GetGameInstance()
-        if not gi then return end
-        if _G.LexusConfig.EnableNoGrass then
-            gi:ExecuteCMD("grass.DensityScale", "0")
-            gi:ExecuteCMD("grass.CullDistanceScale", "0")
-        else
-            gi:ExecuteCMD("grass.DensityScale", "1")
-            gi:ExecuteCMD("grass.CullDistanceScale", "1")
+        local playerController = slua_GameFrontendHUD:GetPlayerController()
+        if not slua.isValid(playerController) then return end
+        
+        local playerCharacter = playerController:GetPlayerCharacterSafety()
+        if not slua.isValid(playerCharacter) then return end
+        
+        local weaponManager = playerCharacter.WeaponManagerComponent
+        if not slua.isValid(weaponManager) then return end
+        
+        local currentWeapon = weaponManager.CurrentWeaponReplicated
+        if not slua.isValid(currentWeapon) then return end
+        
+        local shootComp = currentWeapon.ShootWeaponEntityComp
+        if not slua.isValid(shootComp) then return end
+
+        -- Jalankan masing-masing fungsi sesuai status menu
+        ApplyLessRecoil(_G.TAKORO_GetVal("LESS_RECOIL") == 1, shootComp)
+        ApplyAntiRecoilADS(_G.ESPConfig.NoRecoilADS, shootComp)
+        ApplyNoShake(_G.ESPConfig.AntiShake, shootComp)
+        ApplySmallCross(_G.ESPConfig.CrossDeviation, shootComp)
+    end)
+end
+
+-- ============================================
+-- AIMBOT
+-- ============================================
+local function ApplyHardAimbot()
+    if not CheckExpiration() then return end
+    if _G.TAKORO_GetVal("AIMBOT") ~= 1 then return end
+    pcall(function()
+        local pc = slua_GameFrontendHUD:GetPlayerController()
+        if not slua.isValid(pc) then return end
+        local char = pc:GetPlayerCharacterSafety()
+        if not slua.isValid(char) then return end
+        local wm = char.WeaponManagerComponent
+        if not slua.isValid(wm) then return end
+        local weapon = wm.CurrentWeaponReplicated
+        if not slua.isValid(weapon) then return end
+        local entity = weapon.ShootWeaponEntityComp
+        if not slua.isValid(entity) then return end
+     
+        entity.ExtraHitPerformScale = 3
+        
+        if entity.AutoAimingConfig then
+            for _, range in ipairs({"OuterRange", "InnerRange"}) do
+                local cfg = entity.AutoAimingConfig[range]
+                if cfg then
+                    cfg.Speed = 4.6; cfg.RangeRate = 4.6; cfg.SpeedRate = 3.6
+                    cfg.RangeRateSight = 4.6; cfg.SpeedRateSight = 3.6
+                    cfg.CrouchRate = 3.8; cfg.ProneRate = 3.8; cfg.DyingRate = 0
+                    cfg.adsorbMaxRange = 110; cfg.adsorbMinRange = 20
+                    cfg.adsorbMinAttenuationDis = 110; cfg.adsorbMaxAttenuationDis = 8000
+                    cfg.adsorbActiveMinRange = 20
+                end
+            end
+        end
+        
+        local aimComp = char.BP_AutoAimingComponent_C or char.BP_AutoAimingComponent or char.AutoAimingComponent
+        if slua.isValid(aimComp) and aimComp.Bones then
+            aimComp.Bones[0] = "neck_01"; aimComp.Bones[1] = "neck_01"; aimComp.Bones[2] = "neck_01"
+            pcall(function() aimComp.Bones:Set(0, "neck_01") end)
+            pcall(function() aimComp.Bones:Set(1, "neck_01") end)
+            pcall(function() aimComp.Bones:Set(2, "neck_01") end)
         end
     end)
 end
 
--- ==================== BLACK SKY ====================
-_G.BlackSky = function()
-    pcall(function()
-        local gi = slua_GameFrontendHUD and slua_GameFrontendHUD:GetGameInstance()
-        if not gi then return end
-        if _G.LexusConfig.EnableBlackSky then
-            gi:ExecuteCMD("r.SkyAtmosphere", "0")
-            gi:ExecuteCMD("r.SkyLighting", "0")
-            gi:ExecuteCMD("r.Fog", "0")
-            gi:ExecuteCMD("r.VolumetricFog", "0")
-        else
-            gi:ExecuteCMD("r.SkyAtmosphere", "1")
-            gi:ExecuteCMD("r.SkyLighting", "1")
-            gi:ExecuteCMD("r.Fog", "1")
-            gi:ExecuteCMD("r.VolumetricFog", "1")
-        end
-    end)
+-- ============================================
+-- IPAD VIEW
+-- ============================================
+local TARGET_FOV = 108
+local function ApplyIpadView(cameraComp)
+    if _G._MOD_EXPIRED or _G.TAKORO_GetVal("IPAD_VIEW") ~= 1 or not slua.isValid(cameraComp) then return end
+    if math.abs(cameraComp.FieldOfView - TARGET_FOV) > 0.5 then
+        cameraComp.FieldOfView = TARGET_FOV
+    end
 end
 
--- ==================== 165 FPS ====================
-_G.Enable165FPS = function()
-    if not _G.LexusConfig.Enable165FPS then return end
-    pcall(function()
-        local gi = slua_GameFrontendHUD and slua_GameFrontendHUD:GetGameInstance()
-        if gi then
-            gi:ExecuteCMD("t.MaxFPS", "165")
-            gi:ExecuteCMD("r.VSync", "0")
-            gi:ExecuteCMD("r.FrameRateLimit", "165")
-        end
-    end)
+-- ============================================
+-- WALLHACK / CHAMS
+-- ============================================
+
+local function is_valid(obj)
+    return slua and slua.isValid and slua.isValid(obj)
 end
 
--- ==================== WALLHACK (FIXED - PROPER WORKING) ====================
-local wallhackMaterials = {}
-local wallhackApplied = {}
-
-function _G.ApplyWallhack()
-    if not _G.LexusConfig.EnableWallhack then return end
+function apply_wallhack(local_player, target, controller, is_through_wall, blend_mode)
+    if _G._MOD_EXPIRED then return end
+    if _G.TAKORO_GetVal("WALLHACK") ~= 1 then return end
+    if not is_valid(target) then return end
     
+    -- Collect all mesh components
+    local meshes = {}
     pcall(function()
-        local uCon = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
-        if not slua.isValid(uCon) then return end
+        if is_valid(target.Mesh) then table.insert(meshes, target.Mesh) end
         
-        local currentPawn = uCon:GetCurPawn()
-        if not slua.isValid(currentPawn) then return end
+        local okSkel, SkelComp = pcall(function() return import("SkeletalMeshComponent") end)
+        if okSkel and SkelComp and type(target.GetComponentsByClass) == "function" then
+            local ok, comps = pcall(function() return target:GetComponentsByClass(SkelComp) end)
+            if ok and comps then
+                local count = (type(comps.Num) == "function" and comps:Num()) or #comps or 0
+                for i = 1, count do
+                    local comp = (type(comps.Get) == "function" and comps:Get(i-1)) or comps[i]
+                    if is_valid(comp) and comp ~= target.Mesh then table.insert(meshes, comp) end
+                end
+            end
+        end
         
-        local myTeamId = 0
-        if currentPawn.TeamID then myTeamId = currentPawn.TeamID end
+        local okStatic, StaticComp = pcall(function() return import("StaticMeshComponent") end)
+        if okStatic and StaticComp and type(target.GetComponentsByClass) == "function" then
+            local ok, comps = pcall(function() return target:GetComponentsByClass(StaticComp) end)
+            if ok and comps then
+                local count = (type(comps.Num) == "function" and comps:Num()) or #comps or 0
+                for i = 1, count do
+                    local comp = (type(comps.Get) == "function" and comps:Get(i-1)) or comps[i]
+                    if is_valid(comp) and comp ~= target.Mesh then table.insert(meshes, comp) end
+                end
+            end
+        end
+    end)
+    
+    if #meshes == 0 then return end
+    
+    if is_through_wall then
+        local depth_test = (blend_mode == 2)
         
-        local allChars = Game:GetAllPlayerPawns() or {}
-        
-        for _, enemy in pairs(allChars) do
-            if slua.isValid(enemy) and enemy ~= currentPawn then
-                local isEnemy = false
-                if enemy.TeamID and enemy.TeamID ~= myTeamId then isEnemy = true end
-                
-                if isEnemy then
-                    local meshes = {}
-                    if slua.isValid(enemy.Mesh) then table.insert(meshes, enemy.Mesh) end
-                    
-                    local childComps = enemy:GetComponentsByClass(import("SkeletalMeshComponent"))
-                    if childComps then
-                        for i = 0, childComps:Num() - 1 do
-                            local comp = childComps:Get(i)
-                            if slua.isValid(comp) and comp ~= enemy.Mesh then
-                                table.insert(meshes, comp)
+        pcall(function()
+            for _, mesh in ipairs(meshes) do
+                if is_valid(mesh) then
+                    pcall(function() mesh:SetVisibility(true, false) end)
+                    pcall(function() mesh:SetHiddenInGame(false, false) end)
+                    pcall(function()
+                        local ok, mat = pcall(function() return mesh:GetMaterial(0) end)
+                        if ok and is_valid(mat) then
+                            local okb, base = pcall(function()
+                                if type(mat.GetBaseMaterial) == "function" then return mat:GetBaseMaterial() end
+                                return mat
+                            end)
+                            if okb and is_valid(base) then
+                                if base.bDisableDepthTest ~= depth_test then base.bDisableDepthTest = depth_test end
+                                if base.BlendMode ~= blend_mode then base.BlendMode = blend_mode end
                             end
                         end
+                    end)
+                end
+            end
+        end)
+        
+        pcall(function()
+            for _, mesh in ipairs(meshes) do
+                if is_valid(mesh) then
+                    pcall(function() mesh.UseScopeDistanceCulling = false end)
+                    pcall(function() mesh.PrimitiveShadingStrategy = 1 end)
+                    pcall(function() mesh.ShadingRate = 6 end)
+                end
+            end
+        end)
+        
+        local is_los = false
+        if is_valid(controller) and type(controller.LineOfSightTo) == "function" then
+            pcall(function() is_los = controller:LineOfSightTo(target) end)
+        end
+        
+        local behind_color = { R = 300, G = 0, B = 0, A = 1, r = 300, g = 0, b = 0, a = 1 }
+        local visible_color = { R = 0, G = 300, B = 0, A = 1, r = 0, g = 300, b = 0, a = 1 }
+        local color = is_los and visible_color or behind_color
+        local colorKey = tostring(color.R) .. "." .. tostring(color.G) .. "." .. tostring(color.B)
+        local scale_offset = { R = 3, G = 3, B = 0, A = 0, r = 3, g = 3, b = 0, a = 0 }
+        
+        if not target.WH_MIDs then target.WH_MIDs = {} end
+        if not target.WH_LastColorKey then target.WH_LastColorKey = "" end
+        local color_changed = (target.WH_LastColorKey ~= colorKey) or (target.WH_LastBlendMode ~= blend_mode)
+        
+        local vectorParamNames = {
+            "颜色", "Extra Light Color", "Para_Color", "Para_ColorTint",
+            "Para_Color_1", "Tint", "Color", "BaseColor",
+            "BodyColor", "MainColor", "DiffuseColor", "EmissiveColor",
+            "ParaScaleOffset"
+        }
+        
+        local scalarParamNames = {
+            "Roughness", "Metallic", "Specular", "Opacity", "Glow", "Brightness"
+        }
+        
+        for _, mesh in ipairs(meshes) do
+            if not is_valid(mesh) then goto continue_mesh end
+            
+            local mesh_id = tostring(mesh)
+            if not target.WH_MIDs[mesh_id] then target.WH_MIDs[mesh_id] = {} end
+            
+            local numSlots = 1
+            pcall(function()
+                if type(mesh.GetNumMaterials) == "function" then
+                    local ok, n = pcall(function() return mesh:GetNumMaterials() end)
+                    if ok and type(n) == "number" and n > 0 then numSlots = n end
+                elseif type(mesh.NumMaterials) == "number" and mesh.NumMaterials > 0 then
+                    numSlots = mesh.NumMaterials
+                end
+            end)
+            
+            for slot = 0, (numSlots - 1) do
+                local mat = nil
+                pcall(function()
+                    if type(mesh.GetMaterial) == "function" then mat = mesh:GetMaterial(slot) end
+                end)
+                
+                local mid = target.WH_MIDs[mesh_id][slot]
+                local was_new_mid = false
+                
+                if not is_valid(mid) then
+                    local okCreate, new_mid = pcall(function()
+                        if type(mesh.CreateAndSetMaterialInstanceDynamic) == "function" then
+                            return mesh:CreateAndSetMaterialInstanceDynamic(slot)
+                        end
+                        return nil
+                    end)
+                    if okCreate and is_valid(new_mid) then
+                        target.WH_MIDs[mesh_id][slot] = new_mid
+                        mid = new_mid
+                        was_new_mid = true
                     end
-                    
-                    for _, mesh in ipairs(meshes) do
-                        if slua.isValid(mesh) then
-                            -- Disable depth test for wallhack effect
-                            mesh:SetRenderCustomDepth(true)
-                            mesh:SetCustomDepthStencilValue(1)
-                            mesh.SetRenderInMainPass = true
-                            mesh.bRenderInMainPass = true
-                            mesh.bReceivesDecals = false
-                            mesh.bCastDynamicShadow = false
-                            mesh.SetCastShadow = false
-                            mesh:SetCastShadow(false)
-                            
-                            -- Override materials
-                            for i = 0, 5 do
-                                local mat = mesh:GetMaterial(i)
-                                if slua.isValid(mat) then
-                                    local mid = mesh:CreateAndSetMaterialInstanceDynamic(i)
-                                    if slua.isValid(mid) then
-                                        -- Red color for enemies through walls
-                                        mid:SetVectorParameterValue("Color", {R=1.0, G=0.0, B=0.0, A=1.0})
-                                        mid:SetVectorParameterValue("BaseColor", {R=1.0, G=0.0, B=0.0, A=1.0})
-                                        mid:SetVectorParameterValue("DiffuseColor", {R=1.0, G=0.0, B=0.0, A=1.0})
-                                    end
+                elseif is_valid(mat) and mat ~= mid then
+                    pcall(function()
+                        if type(mesh.SetMaterial) == "function" then mesh:SetMaterial(slot, mid) end
+                    end)
+                end
+                
+                if is_valid(mid) and (color_changed or was_new_mid) then
+                    for _, pname in ipairs(vectorParamNames) do
+                        pcall(function()
+                            if type(mid.SetVectorParameterValue) == "function" then
+                                mid:SetVectorParameterValue(pname, color)
+                            end
+                        end)
+                    end
+                    pcall(function()
+                        if type(mid.SetVectorParameterValue) == "function" then
+                            mid:SetVectorParameterValue("ParaScaleOffset", scale_offset)
+                        end
+                    end)
+                    for _, sname in ipairs(scalarParamNames) do
+                        pcall(function()
+                            if type(mid.SetScalarParameterValue) == "function" then
+                                mid:SetScalarParameterValue(sname, 5.0)
+                            end
+                        end)
+                    end
+                end
+            end
+            ::continue_mesh::
+        end
+        
+        if color_changed then
+            target.WH_LastColorKey = colorKey
+            target.WH_LastBlendMode = blend_mode
+        end
+    else
+        pcall(function()
+            for _, mesh in ipairs(meshes) do
+                if is_valid(mesh) then
+                    pcall(function()
+                        if type(mesh.GetMaterial) == "function" then
+                            local mat = mesh:GetMaterial(0)
+                            if mat then
+                                local base = (type(mat.GetBaseMaterial) == "function") and mat:GetBaseMaterial() or mat
+                                if base then
+                                    if base.bDisableDepthTest ~= false then base.bDisableDepthTest = false end
+                                    if base.BlendMode ~= 1 then base.BlendMode = 1 end
                                 end
                             end
                         end
-                    end
+                    end)
+                    local m_id = tostring(mesh)
+                    if target.WH_MIDs and target.WH_MIDs[m_id] then target.WH_MIDs[m_id] = nil end
+                end
+            end
+        end)
+        target.WH_LastColorKey = nil
+        target.WH_LastBlendMode = nil
+        target.WH_MIDs = nil
+    end
+end
+
+-- ============================================
+-- BLACK SKY (Bisa ON / OFF)
+-- ============================================
+function SetBlackSky(enabled)
+    InitializeModules()
+    pcall(function()
+        local logic_setting_graphics = require("client.slua.logic.setting.logic_setting_graphics")
+        if logic_setting_graphics and logic_setting_graphics.GetGameInstance then
+            local gameInstance = logic_setting_graphics.GetGameInstance()
+            if gameInstance then
+                if enabled then
+                    -- Aktifkan Langit Hitam
+                    gameInstance:ExecuteCMD("r.CylinderMaxDrawHeight", "9999")
+                    gameInstance:ExecuteCMD("r.SkyLightingQuality", "0")
+                    gameInstance:ExecuteCMD("r.FogDensity", "0")
+                    gameInstance:ExecuteCMD("r.SkyDistanceThreshold", "0")
+                else
+                    -- Kembalikan ke pengaturan awal
+                    gameInstance:ExecuteCMD("r.CylinderMaxDrawHeight", "0")
+                    gameInstance:ExecuteCMD("r.SkyLightingQuality", "3")
+                    gameInstance:ExecuteCMD("r.FogDensity", "1")
+                    gameInstance:ExecuteCMD("r.SkyDistanceThreshold", "1")
+                end
+            end
+        end
+    end)
+end
+-- ============================================
+-- ANTI-CHEAT BYPASS
+-- ============================================
+if not _G.GameplayCallbacks then _G.GameplayCallbacks = {} end
+
+function _G.InitializeAntiReport()
+    pcall(function()
+        local ClientReportPlayerSubsystem = require("GameLua.Mod.BaseMod.Client.Security.ClientReportPlayerSubsystem")
+        if ClientReportPlayerSubsystem then
+            ClientReportPlayerSubsystem.OnInit = function() end
+            ClientReportPlayerSubsystem._OnPlayerKilledOtherPlayer = function() end
+            ClientReportPlayerSubsystem._RecordFatalDamager = function() end
+            ClientReportPlayerSubsystem._OnBattleResult = function() end
+            ClientReportPlayerSubsystem.GetFatalDamagerMap = function() return {} end
+        end
+        
+        local DSReportPlayerSubsystem = require("GameLua.Mod.BaseMod.DS.Security.DSReportPlayerSubsystem")
+        if DSReportPlayerSubsystem then
+            DSReportPlayerSubsystem.OnInit = function() end
+            DSReportPlayerSubsystem._OnCharacterDied = function() end
+            DSReportPlayerSubsystem._RecordFatalDamager = function() end
+        end
+    end)
+end
+
+function _G.InitializeAntiCheatHooks()
+    pcall(function()
+        local hbc = require("GameLua.Mod.BaseMod.Common.Security.HiggsBosonComponent")
+        if hbc and hbc.StaticShowSecurityAlertInDev then
+            hbc.StaticShowSecurityAlertInDev = function() end
+        end
+        if _G.AvatarCheckCallback then
+            _G.AvatarCheckCallback.StartAvatarCheck = function() end
+            _G.AvatarCheckCallback.OnReportItemID = function() end
+            _G.AvatarCheckCallback.PostPlayerControllerLoginInit = function(pc)
+                if slua.isValid(pc) and pc.HiggsBosonComponent then
+                    pc.HiggsBosonComponent:ControlMHActive(0)
+                    pc.HiggsBosonComponent.bMHActive = false
                 end
             end
         end
     end)
 end
 
--- ==================== ESP (FIXED) ====================
-local cachedPawns = {}
-local lastPawnRefresh = 0
-local boneList = {"head", "neck_01", "spine_03", "pelvis"}
-
-local function TextScale(distM)
-    local t = math.min(distM / 400, 1)
-    return 0.35 - t * 0.2
-end
-
-local function HPBar(pct)
-    local n = math.floor((pct * 4) + 0.5)
-    local s = ""
-    for i = 1, 4 do s = s .. (i <= n and "█" or "░") end
-    return s
-end
-
-local function IsPawnAlive(p)
-    if not slua.isValid(p) then return false end
-    local health = p.Health or 0
-    return health > 0
-end
-
-local function ESPTick()
-    if not _G.LexusConfig.EnableESP then return end
-    
+function _G.InitializeGameplayBypass()
     pcall(function()
-        local uCon = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
-        if not slua.isValid(uCon) then return end
+        if not _G.GameplayCallbacks or _G.GameplayCallbacks.IsBypassed then return end
+        local GC = _G.GameplayCallbacks
         
-        local currentPawn = uCon:GetCurPawn()
-        if not slua.isValid(currentPawn) then return end
+        local function EF() end
+        local function ETF() return {} end
         
-        local myTeamId = 0
-        if currentPawn.TeamID then myTeamId = currentPawn.TeamID end
+        GC.SendTssSdkAntiDataToLobby = EF
+        GC.SendDSErrorLogToLobby = EF
+        GC.SendDSHawkEyePatrolLogToLobby = EF
+        GC.SendSecTLog = EF
+        GC.SendDataMiningTLog = EF
+        GC.SendActivityTLog = EF
+        GC.ReportAttackFlow = EF
+        GC.ReportHurtFlow = EF
+        GC.ReportFireArms = EF
+        GC.ReportPlayerPosition = EF
+        GC.ReportVehicleMoveFlow = EF
+        GC.GetWeaponReport = ETF
+        GC.IsBypassed = true
         
-        local myPos = currentPawn:K2_GetActorLocation()
-        if not myPos then return end
-        
-        local myEyePos = myPos
-        if currentPawn.GetHeadLocation then
-            myEyePos = currentPawn:GetHeadLocation(false) or myPos
+        local orig = GC.OnDSPlayerStateChanged
+        GC.OnDSPlayerStateChanged = function(UID, state, ...)
+            if tostring(state):lower() == "cheatdetected" then return end
+            if orig then pcall(orig, UID, state, ...) end
         end
         
-        local HUD = uCon:GetHUD()
-        if not slua.isValid(HUD) then return end
+        GC.OnPlayerRPCValidateFailed = EF
+        GC.OnPlayerActorChannelError = EF
+        GC.OnShutdownAfterError = EF
+    end)
+end
+
+function _G.DisableHiggsBoson()
+    local pc = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
+    if not pc or not slua.isValid(pc) then return end
+    if pc.HiggsBosonComponent then
+        pc.HiggsBosonComponent.bMHActive = false
+        pc.HiggsBosonComponent:ControlMHActive(0)
+    end
+end
+
+function _G.InitializeConnectionGuard()
+    if _G.ConnectionGuardInitialized or not _G.GameplayCallbacks then return end
+    _G.ConnectionGuardInitialized = true
+    local GC = _G.GameplayCallbacks
+    GC.OnPlayerNetConnectionClosed = function() end
+    GC.OnPlayerActorChannelError = function() end
+    GC.OnPlayerRPCValidateFailed = function() end
+    GC.OnPlayerSpectateException = function() end
+    GC.OnShutdownAfterError = function() end
+end
+
+function _G.InitializeLogBlocker()
+    pcall(function()
+        local TLog = _G.TLog
+        if TLog then TLog.Info=function() end; TLog.Error=function() end end
+    end)
+end
+
+function _G.InitializeScannerBlocker()
+    pcall(function()
+        local TssSdk = _G.TssSdk
+        if TssSdk then TssSdk.OnRecvData=function() end; TssSdk.SendReportInfo=function() end end
+    end)
+end
+
+function _G.InitializeReplayTelemetryBlocker()
+    pcall(function() end)
+end
+
+local function InitializeAllBlockers()
+    pcall(function()
+        _G.InitializeAntiReport()
+        _G.InitializeAntiCheatHooks()
+        _G.InitializeGameplayBypass()
+        _G.InitializeConnectionGuard()
+        _G.DisableHiggsBoson()
+        _G.InitializeLogBlocker()
+        _G.InitializeScannerBlocker()
+        _G.InitializeReplayTelemetryBlocker()
+    end)
+end
+
+-- ============================================
+-- CHARACTER MODULE & LOOP UTAMA
+-- ============================================
+local BRPlayerCharacterBase = {}
+
+function BRPlayerCharacterBase:ctor()
+    self.bHasShownDevNotice = false
+    self.TAKORO_NativeESP_Ready = false
+end
+
+function BRPlayerCharacterBase:_PostConstruct()
+    BRPlayerCharacterBase.__super._PostConstruct(self)
+    self:InitAddSpecialMoveInfo()
+    self.bCanNearDeathGiveup = true
+    self:StartAdvancedSystems()
+end
+
+function BRPlayerCharacterBase:ReceiveBeginPlay()
+    BRPlayerCharacterBase.__super.ReceiveBeginPlay(self)
+    EventSystem:postEvent(EVENTTYPE_SINGLETRAINING, EVENTID_CHARACTER_BEGINPLAY, self.Object)
+end
+
+function BRPlayerCharacterBase:ReceiveEndPlay(endPlayReason)
+    BRPlayerCharacterBase.__super.ReceiveEndPlay(self, endPlayReason)
+    if Client and GameplayData.RemoveCharacter then
+        GameplayData.RemoveCharacter(self.Object)
+    end
+end
+
+function BRPlayerCharacterBase:StartAdvancedSystems()
+    if not Client then return end
+    if not CheckExpiration() then ShowExpiryPopup(true); return end
+    
+    self:AddGameTimer(1.0, true, function()
+        if not slua.isValid(self.Object) then return end
+        if not CheckExpiration() then ShowExpiryPopup(true); return end
         
-        local now = os.clock()
-        if now - lastPawnRefresh > 1.0 then
-            lastPawnRefresh = now
-            cachedPawns = Game:GetAllPlayerPawns() or {}
-        end
+        local localPlayer = GameplayData.GetPlayerCharacter()
+        if not slua.isValid(localPlayer) then return end
         
-        for _, tPawn in pairs(cachedPawns) do
-            if slua.isValid(tPawn) and tPawn ~= currentPawn then
-                local isEnemy = false
-                if tPawn.TeamID and tPawn.TeamID ~= myTeamId then isEnemy = true end
-                
-                if isEnemy and IsPawnAlive(tPawn) then
-                    local enemyPos = tPawn:K2_GetActorLocation()
-                    local dx = enemyPos.X - myPos.X
-                    local dy = enemyPos.Y - myPos.Y
-                    local dz = enemyPos.Z - myPos.Z
-                    local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+        -- Jalankan semua fitur aktif
+        ApplyHardAimbot()
+        ApplyAllRecoilFeatures() -- Ganti fungsi lama dengan yang baru
+        ApplyIpadView(self.Object.ThirdPersonCameraComponent)
+        SetBlackSky(_G.TAKORO_GetVal("BLACK_SKY") == 1)
+
+        
+        if self.Object == localPlayer then
+            if not _G.TAKOROModTickCount then _G.TAKOROModTickCount = 0 end
+            _G.TAKOROModTickCount = _G.TAKOROModTickCount + 1
+            
+            if not self.TAKORO_NativeESP_Ready then
+                pcall(function()
+                    local gameplayTools = require("GameLua.GameCore.Module.ScreenMark.ScreenMarkConfig")
+                    local screenMarkConfig = gameplayTools.GetCurrentConfig("ScreenMarkConfig")
+					if screenMarkConfig and screenMarkConfig[1006] then
+    					screenMarkConfig[1006].bBindBlocked = false
+    					screenMarkConfig[1006].bBindOutScreen = true
+    					screenMarkConfig[1006].bIgnoreObstacle = true 
+    					screenMarkConfig[1006].MaxWidgetNum = 99
+    					screenMarkConfig[1006].MaxShowDistance = 35000
+    					screenMarkConfig[1006].BindSocketName = "head"
+    					screenMarkConfig[1006].RenderPriority = 10
+					end
+                end)
+                self.TAKORO_NativeESP_Ready = true
+            end
+            
+            local enemies = Game:GetAllPlayerPawns() or {}
+            local pc = slua_GameFrontendHUD:GetPlayerController()
+            
+            for _, enemy in pairs(enemies) do
+                if slua.isValid(enemy) and enemy ~= localPlayer and enemy.TeamID ~= localPlayer.TeamID then
+                    local isDead = false
+                    pcall(function()
+                        if enemy.IsDead then isDead = enemy:IsDead()
+                        elseif enemy.bIsDead then isDead = true end
+                    end)
                     
-                    if dist < 300000 then
-                        local name = tPawn.PlayerName or "UNKNOWN"
-                        local distM = dist / 100
+                    if not isDead then
+                        apply_wallhack(localPlayer, enemy, pc, true, 2)
                         
-                        local health = tPawn.Health or 100
-                        local maxHealth = tPawn.HealthMax or 100
-                        local hpPercent = health / maxHealth
-                        
-                        local hpColor = {R=0,G=255,B=0,A=255}
-                        if hpPercent < 0.3 then hpColor = {R=255,G=0,B=0,A=255}
-                        elseif hpPercent < 0.7 then hpColor = {R=255,G=255,B=0,A=255} end
-                        
-                        -- Get head position for text placement
-                        local headPos = enemyPos
-                        local mesh = tPawn.Mesh
-                        if slua.isValid(mesh) then
-                            headPos = mesh:GetSocketLocation("head")
-                        end
-                        
-                        local textZ = headPos.Z - enemyPos.Z + 80
-                        local nameZ = textZ - 25
-                        
-                        -- Check visibility for color
-                        local isVisible = false
-                        pcall(function()
-                            isVisible = uCon:LineOfSightTo(tPawn)
-                        end)
-                        
-                        local nameColor = {R=0,G=255,B=0,A=255}
-                        if isVisible then
-                            if _G.LexusConfig.EnableChamsGreen then
-                                nameColor = _G.LexusConfig.ChamsGreenRGB
-                            end
-                        else
-                            if _G.LexusConfig.EnableChamsYellow then
-                                nameColor = _G.LexusConfig.ChamsYellowRGB
-                            end
-                        end
-                        
-                        -- Draw name
-                        HUD:AddDebugText(string.format("[%.0fm] %s", distM, name), tPawn, TextScale(distM), 
-                            {X=0,Y=0,Z=nameZ}, {X=0,Y=0,Z=nameZ}, nameColor, true, false, true, nil, 1.0, true)
-                        
-                        -- Draw health bar
-                        local hpText = HPBar(hpPercent) .. " " .. math.floor(hpPercent * 100) .. "%"
-                        HUD:AddDebugText(hpText, tPawn, TextScale(distM), 
-                            {X=0,Y=0,Z=textZ}, {X=0,Y=0,Z=textZ}, hpColor, true, false, true, nil, 1.0, true)
+                        if _G.TAKORO_GetVal("HP_BAR") == 1 then
+    						pcall(function()
+        						if InGameMarkTools and InGameMarkTools.ClientAddMapMark then
+            						if not enemy.NativeHPBarMark or not slua.isValid(enemy.NativeHPBarMark) then
+                						enemy.NativeHPBarMark = InGameMarkTools.ClientAddMapMark(1006, FVector(0,0,0), 0, "", 4, enemy)
+                						enemy.NativeDistMark = InGameMarkTools.ClientAddMapMark(9999, FVector(0,0,0), 0, "", 4, enemy)
+                						enemy.bHasTAKORONativeHPBar = true
+            						end
+            						if slua.isValid(enemy.NativeHPBarMark) then
+                						enemy.NativeHPBarMark:SetVisibility(true)
+                						enemy.NativeHPBarMark:SetHiddenInGame(false)
+                						enemy.NativeHPBarMark.bIgnoreLineOfSight = true
+                						enemy.NativeHPBarMark.bAlwaysRender = true
+                						enemy.NativeHPBarMark.RenderMode = 1 
+                						enemy.NativeHPBarMark.MaxViewDistance = 350000 
+            						end
+        						end
+    						end)
+						end
                     end
                 end
             end
@@ -675,413 +902,43 @@ local function ESPTick()
     end)
 end
 
--- ==================== SKIN CHANGER ====================
-_G.WeaponSkinMap = _G.WeaponSkinMap or {}
-_G.OutfitMap = _G.OutfitMap or {}
-_G.SkinLoadedCache = _G.SkinLoadedCache or {}
-
-_G.get_skin_id = function(weaponID)
-    if not weaponID or weaponID == 0 then return nil end
-    return _G.WeaponSkinMap[weaponID]
+-- ============================================
+-- INITIALIZATION
+-- ============================================
+function _G.InitializeAllSystems()
+    if not CheckExpiration() then ShowExpiryPopup(true); return end
+    InitializeAllBlockers()
 end
 
-_G.download_item = function(i)
-    if not i then return end
-    pcall(function()
-        local PM = require("client.slua.logic.download.puffer.puffer_manager")
-        local PC = require("client.slua.logic.download.puffer_const")
-        if PM.GetState(PC.ENUM_DownloadType.ODPAK, {i}) ~= PC.ENUM_DownloadState.Done then
-            PM.Download(PC.ENUM_DownloadType.ODPAK, {i})
-        end
+pcall(function()
+    require("common.time_ticker").AddTimerOnce(2, function()
+        if not CheckExpiration() then ShowExpiryPopup(true); return end
+        _G.TryShowWelcome()
+        _G.InitializeAllSystems()
     end)
-end
+end)
 
-_G.ApplyWeaponSkins = function(pawn)
-    if not _G.LexusConfig.EnableSkinChanger then return end
-    if not slua.isValid(pawn) then return end
-    pcall(function()
-        local wm = pawn:GetWeaponManager()
-        if not slua.isValid(wm) then return end
-        for i = 1, 3 do
-            local wpn = wm:GetInventoryWeaponByPropSlot(i)
-            if slua.isValid(wpn) then
-                local targetID = _G.get_skin_id(wpn:GetWeaponID())
-                if targetID and targetID > 0 then
-                    if not _G.SkinLoadedCache[targetID] then
-                        pcall(_G.download_item, targetID)
-                        _G.SkinLoadedCache[targetID] = true
-                    end
-                    if wpn.SetWeaponAvatarID then wpn:SetWeaponAvatarID(targetID) end
-                end
-            end
-        end
-    end)
-end
+-- ============================================
+-- EXPORT
+-- ============================================
+local BRCharacterClass = class(CharacterBase, nil, BRPlayerCharacterBase)
+BRPlayerCharacterBase.ServerRPC = {}
+BRPlayerCharacterBase.ClientRPC = {}
+BRPlayerCharacterBase.MulticastRPC = {}
 
-_G.ApplyOutfitSkins = function(pawn)
-    if not _G.LexusConfig.EnableSkinChanger then return end
-    if not slua.isValid(pawn) then return end
-    pcall(function()
-        local ac = pawn:getAvatarComponent2()
-        if slua.isValid(ac) and ac.NetAvatarData then
-            if _G.OutfitMap.Suit and _G.OutfitMap.Suit > 0 then
-                if not _G.SkinLoadedCache[_G.OutfitMap.Suit] then
-                    pcall(_G.download_item, _G.OutfitMap.Suit)
-                    _G.SkinLoadedCache[_G.OutfitMap.Suit] = true
-                end
-                ac:PutOnCustomEquipmentByID(_G.OutfitMap.Suit, {})
-            end
-        end
-    end)
-end
+BRPlayerCharacterBase.ServerRPC.ServerRPC_NearDeathGiveupRescue = { Reliable = true, Params = {} }
+BRPlayerCharacterBase.ServerRPC.ServerRPC_CarryDeadBox = { Reliable = true, Params = {UEnums.EPropertyClass.Object} }
+BRPlayerCharacterBase.ClientRPC.ClientRPC_TriggerHighlightMoment = { Reliable = true, Params = {UEnums.EPropertyClass.UInt32, UEnums.EPropertyClass.UInt32} }
+BRPlayerCharacterBase.ClientRPC.RPC_Client_SetShouldCheckPassWall = { Reliable = true, Params = {UEnums.EPropertyClass.Bool} }
 
--- ==================== MOD MENU (KNOX STYLE) ====================
-function _G.TryShowLegalCredit()  
-    if _G.LegalShown then return end 
-    pcall(function() 
-        local Legal = require("client.slua.logic.common.logic_common_legal_msg") 
-        local onRefuse = function() end 
-        local onAccept = function() end 
-        local content = table.concat({
-            "╔════════════════════════════════════════════════════╗",
-            "║        ULTIMATE KNOX MOD MENU V8                 ║",
-            "║     Fully Working - All Features Fixed             ║",
-            "╠════════════════════════════════════════════════════╣",
-            "║                                                    ║",
-            "║  DJTEAM CREW:                                      ║",
-            "║  @KNOX_REALONE                                   ║",
-            "║  @JECKYF                                           ║",
-            "║                                                    ║",
-            "╠════════════════════════════════════════════════════╣",
-            "║  WORKING FEATURES:                                 ║",
-            "║  ✓ Aimbot (LOW/MEDIUM/HARD/EXTREME + Strength)     ║",
-            "║  ✓ Auto Aim (Head/Neck/Pelvis)                     ║",
-            "║  ✓ No Recoil / No Shake                            ║",
-            "║  ✓ Magic Bullet (70/120/180)                       ║",
-            "║  ✓ IPAD View / FOV Changer (80-140)                ║",
-            "║  ✓ No Grass / Black Sky                            ║",
-            "║  ✓ Weapon Mods (FireSpeed, Instan Hit, etc.)       ║",
-            "║  ✓ Wallhack (Red enemies through walls)            ║",
-            "║  ✓ Wall ESP + Health Bars                          ║",
-            "║  ✓ 165 FPS Unlock                                  ║",
-            "║  ✓ Skin Changer                                    ║",
-            "║                                                    ║",
-            "╠════════════════════════════════════════════════════╣",
-            "║         ENJOY & PLAY SAFE!                         ║",
-            "╚════════════════════════════════════════════════════╝"
-        }, "\n") 
-        Legal.ShowOnePopUI({
-            tabType = 999,
-            title = "KNOX MOD MENU V8",
-            content = content,
-            tipsText = nil,
-            btnOKText = "OK",
-            btnCancleText = "CLOSE",
-            acceptFunc = onAccept,
-            refuseFunc = onRefuse
-        }) 
-        _G.LegalShown = true 
-    end) 
-end
-
-function _G.InitModMenuTab()
-    if _G.ModMenuInitialized then return end
-    _G.ModMenuInitialized = true
-
-    local LocUtil = _G.LocUtil
-    if not LocUtil and package.loaded["client.common.LocUtil"] then
-        LocUtil = require("client.common.LocUtil")
-    end
-    if LocUtil and not LocUtil._IsModMenuHooked then
-        local old_get = LocUtil.GetLocalizeResStr
-        LocUtil.GetLocalizeResStr = function(id)
-            if type(id) == "string" and not tonumber(id) then return id end
-            return old_get(id)
-        end
-        LocUtil._IsModMenuHooked = true
-    end
-
-    local SettingPageDefine = require("client.logic.NewSetting.SettingPageDefine")
-    local SettingCatalog = require("client.logic.NewSetting.SettingCatalog")
-
-    if not SettingPageDefine.ModMenu then
-        local AliasMap = require("client.slua.umg.NewSetting.Item.AliasMap")
-
-        -- CATEGORY 1: VISUAL MODS
-        local VisualStack = {
-            { Key = "ModMenu_FOV_Ex", UI = AliasMap.TitleSwitcher, Text = "IPAD VIEW / FOV", ExpandIndex = 0,
-              GetFunc = function() return _G.LexusConfig.EnableFOV end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableFOV = v; if not v then _G.SetFOV(90) else _G.SetFOV(_G.LexusConfig.FOVValue) end; return true end },
-            { Key = "ModMenu_FOV_Slider", UI = AliasMap.Slider, Text = "   FOV Value (80-140)", ExpandHandle = "ModMenu_FOV_Ex", MinValue = 0, MaxValue = 60,
-              GetFunc = function() return (_G.LexusConfig.FOVValue or 110) - 80 end,
-              SetFunc = function(c, v) local finalFOV = v + 80; _G.LexusConfig.FOVValue = finalFOV; if _G.LexusConfig.EnableFOV then _G.SetFOV(finalFOV) end; return true end },
-            { Key = "ModMenu_Grass_Ex", UI = AliasMap.TitleSwitcher, Text = "NO GRASS",
-              GetFunc = function() return _G.LexusConfig.EnableNoGrass end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableNoGrass = v; _G.DisableGrass(); return true end },
-            { Key = "ModMenu_BlackSky", UI = AliasMap.TitleSwitcher, Text = "BLACK SKY",
-              GetFunc = function() return _G.LexusConfig.EnableBlackSky end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableBlackSky = v; _G.BlackSky(); return true end },
-            { Key = "ModMenu_165FPS", UI = AliasMap.TitleSwitcher, Text = "165 FPS UNLOCK",
-              GetFunc = function() return _G.LexusConfig.Enable165FPS end,
-              SetFunc = function(c, v) _G.LexusConfig.Enable165FPS = v; _G.Enable165FPS(); return true end },
-        }
-
-        -- CATEGORY 2: COMBAT MODS
-        local CombatStack = {
-            { Key = "ModMenu_AimConfig_Ex", UI = AliasMap.TitleSwitcher, Text = "AIMBOT", ExpandIndex = 0,
-              GetFunc = function() return _G.LexusConfig.EnableAiming end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableAiming = v; _G.ApplyAimingConfig(); return true end },
-            { Key = "ModMenu_AimbotStrength", UI = AliasMap.Slider, Text = "   Aimbot Strength (0-100)", ExpandHandle = "ModMenu_AimConfig_Ex", MinValue = 0, MaxValue = 100,
-              GetFunc = function() return _G.LexusConfig.AimbotStrength or 50 end,
-              SetFunc = function(c, v) _G.LexusConfig.AimbotStrength = v; _G.ApplyAimingConfig(); return true end },
-            { Key = "ModMenu_Aim_Level_Title", UI = AliasMap.Title, Text = "   SPEED LEVEL", ExpandHandle = "ModMenu_AimConfig_Ex" },
-            { Key = "ModMenu_Aim_Low", UI = AliasMap.Switcher, Text = "      [ LOW ]", ExpandHandle = "ModMenu_AimConfig_Ex",
-              GetFunc = function() return _G.LexusConfig.AimingLevel == "LOW" end,
-              SetFunc = function(c, v) if v then _G.LexusConfig.AimingLevel = "LOW"; _G.LexusConfig.EnableAiming = true; _G.ApplyAimingConfig() end; return true end },
-            { Key = "ModMenu_Aim_Med", UI = AliasMap.Switcher, Text = "      [ MEDIUM ]", ExpandHandle = "ModMenu_AimConfig_Ex",
-              GetFunc = function() return _G.LexusConfig.AimingLevel == "MEDIUM" end,
-              SetFunc = function(c, v) if v then _G.LexusConfig.AimingLevel = "MEDIUM"; _G.LexusConfig.EnableAiming = true; _G.ApplyAimingConfig() end; return true end },
-            { Key = "ModMenu_Aim_Hard", UI = AliasMap.Switcher, Text = "      [ HARD ]", ExpandHandle = "ModMenu_AimConfig_Ex",
-              GetFunc = function() return _G.LexusConfig.AimingLevel == "HARD" end,
-              SetFunc = function(c, v) if v then _G.LexusConfig.AimingLevel = "HARD"; _G.LexusConfig.EnableAiming = true; _G.ApplyAimingConfig() end; return true end },
-            { Key = "ModMenu_Aim_Ext", UI = AliasMap.Switcher, Text = "      [ EXTREME ]", ExpandHandle = "ModMenu_AimConfig_Ex",
-              GetFunc = function() return _G.LexusConfig.AimingLevel == "EXTREME" end,
-              SetFunc = function(c, v) if v then _G.LexusConfig.AimingLevel = "EXTREME"; _G.LexusConfig.EnableAiming = true; _G.ApplyAimingConfig() end; return true end },
-            { Key = "ModMenu_AutoAim_Ex", UI = AliasMap.TitleSwitcher, Text = "AUTO AIM", ExpandIndex = 0,
-              GetFunc = function() return _G.LexusConfig.EnableAutoAim end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableAutoAim = v; _G.ApplyAutoAim(); return true end },
-            { Key = "ModMenu_Bones_Title", UI = AliasMap.Title, Text = "   TARGET BONES", ExpandHandle = "ModMenu_AutoAim_Ex" },
-            { Key = "ModMenu_Aim_Head", UI = AliasMap.Switcher, Text = "      [ HEAD ]", ExpandHandle = "ModMenu_AutoAim_Ex",
-              GetFunc = function() return _G.LexusConfig.AutoAimBone == "Head" end,
-              SetFunc = function(c, v) if v then _G.LexusConfig.AutoAimBone = "Head"; _G.ApplyAutoAim() end; return true end },
-            { Key = "ModMenu_Aim_Neck", UI = AliasMap.Switcher, Text = "      [ NECK ]", ExpandHandle = "ModMenu_AutoAim_Ex",
-              GetFunc = function() return _G.LexusConfig.AutoAimBone == "neck_01" end,
-              SetFunc = function(c, v) if v then _G.LexusConfig.AutoAimBone = "neck_01"; _G.ApplyAutoAim() end; return true end },
-            { Key = "ModMenu_Aim_Pelvis", UI = AliasMap.Switcher, Text = "      [ PELVIS ]", ExpandHandle = "ModMenu_AutoAim_Ex",
-              GetFunc = function() return _G.LexusConfig.AutoAimBone == "pelvis" end,
-              SetFunc = function(c, v) if v then _G.LexusConfig.AutoAimBone = "pelvis"; _G.ApplyAutoAim() end; return true end },
-            { Key = "ModMenu_Magic_Ex", UI = AliasMap.TitleSwitcher, Text = "MAGIC BULLET", ExpandIndex = 0,
-              GetFunc = function() return _G.LexusConfig.EnableMagic end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableMagic = v; _G.ResetHitbox(); return true end },
-            { Key = "ModMenu_Magic_Low", UI = AliasMap.Switcher, Text = "   [ LEVEL: LOW (70) ]", ExpandHandle = "ModMenu_Magic_Ex",
-              GetFunc = function() return _G.LexusConfig.MagicLevel == 70 end,
-              SetFunc = function(c, v) if v then _G.ResetHitbox(); _G.LexusConfig.MagicLevel = 70 end; return true end },
-            { Key = "ModMenu_Magic_Med", UI = AliasMap.Switcher, Text = "   [ LEVEL: MEDIUM (120) ]", ExpandHandle = "ModMenu_Magic_Ex",
-              GetFunc = function() return _G.LexusConfig.MagicLevel == 120 end,
-              SetFunc = function(c, v) if v then _G.ResetHitbox(); _G.LexusConfig.MagicLevel = 120 end; return true end },
-            { Key = "ModMenu_Magic_High", UI = AliasMap.Switcher, Text = "   [ LEVEL: HARD (180) ]", ExpandHandle = "ModMenu_Magic_Ex",
-              GetFunc = function() return _G.LexusConfig.MagicLevel == 180 end,
-              SetFunc = function(c, v) if v then _G.ResetHitbox(); _G.LexusConfig.MagicLevel = 180 end; return true end },
-            { Key = "ModMenu_Recoil_Ex", UI = AliasMap.TitleSwitcher, Text = "NO RECOIL", ExpandIndex = 0,
-              GetFunc = function() return _G.LexusConfig.EnableNoRecoil end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableNoRecoil = v; _G.ApplyNoRecoil(); return true end },
-            { Key = "ModMenu_NoShake", UI = AliasMap.Switcher, Text = "   [ NO SHAKE ]", ExpandHandle = "ModMenu_Recoil_Ex",
-              GetFunc = function() return _G.LexusConfig.EnableNoShake end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableNoShake = v; _G.ApplyNoRecoil(); return true end },
-            { Key = "ModMenu_Recoil_Less", UI = AliasMap.Switcher, Text = "   [ LESS RECOIL ]", ExpandHandle = "ModMenu_Recoil_Ex",
-              GetFunc = function() return _G.LexusConfig.RecoilLevel == "LESS" end,
-              SetFunc = function(c, v) if v then _G.LexusConfig.RecoilLevel = "LESS"; _G.LexusConfig.EnableNoRecoil = true; _G.ApplyNoRecoil() end; return true end },
-            { Key = "ModMenu_Recoil_No", UI = AliasMap.Switcher, Text = "   [ NO RECOIL ]", ExpandHandle = "ModMenu_Recoil_Ex",
-              GetFunc = function() return _G.LexusConfig.RecoilLevel == "NO" end,
-              SetFunc = function(c, v) if v then _G.LexusConfig.RecoilLevel = "NO"; _G.LexusConfig.EnableNoRecoil = true; _G.ApplyNoRecoil() end; return true end },
-        }
-
-        -- CATEGORY 3: ESP & WALLHACK
-        local ESPStack = {
-            { Key = "ModMenu_Wallhack", UI = AliasMap.TitleSwitcher, Text = "WALLHACK (Red Enemies Through Walls)",
-              GetFunc = function() return _G.LexusConfig.EnableWallhack end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableWallhack = v; return true end },
-            { Key = "ModMenu_ESP", UI = AliasMap.TitleSwitcher, Text = "WALL ESP + HEALTH BARS",
-              GetFunc = function() return _G.LexusConfig.EnableESP end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableESP = v; return true end },
-            { Key = "Title_ESP_Colors", UI = AliasMap.Title, Text = "CHAMS COLORS" },
-            { Key = "ModMenu_GreenColor", UI = AliasMap.Switcher, Text = "   GREEN (Visible Enemies)",
-              GetFunc = function() return _G.LexusConfig.EnableChamsGreen end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableChamsGreen = v; return true end },
-            { Key = "ModMenu_GreenR", UI = AliasMap.Slider, Text = "      Green-R (0-255)", MinValue = 0, MaxValue = 255,
-              GetFunc = function() return _G.LexusConfig.ChamsGreenRGB.R or 0 end,
-              SetFunc = function(c, v) _G.LexusConfig.ChamsGreenRGB.R = v; return true end },
-            { Key = "ModMenu_GreenG", UI = AliasMap.Slider, Text = "      Green-G (0-255)", MinValue = 0, MaxValue = 255,
-              GetFunc = function() return _G.LexusConfig.ChamsGreenRGB.G or 255 end,
-              SetFunc = function(c, v) _G.LexusConfig.ChamsGreenRGB.G = v; return true end },
-            { Key = "ModMenu_GreenB", UI = AliasMap.Slider, Text = "      Green-B (0-255)", MinValue = 0, MaxValue = 255,
-              GetFunc = function() return _G.LexusConfig.ChamsGreenRGB.B or 0 end,
-              SetFunc = function(c, v) _G.LexusConfig.ChamsGreenRGB.B = v; return true end },
-            { Key = "ModMenu_YellowColor", UI = AliasMap.Switcher, Text = "   YELLOW (Hidden Enemies)",
-              GetFunc = function() return _G.LexusConfig.EnableChamsYellow end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableChamsYellow = v; return true end },
-            { Key = "ModMenu_YellowR", UI = AliasMap.Slider, Text = "      Yellow-R (0-255)", MinValue = 0, MaxValue = 255,
-              GetFunc = function() return _G.LexusConfig.ChamsYellowRGB.R or 255 end,
-              SetFunc = function(c, v) _G.LexusConfig.ChamsYellowRGB.R = v; return true end },
-            { Key = "ModMenu_YellowG", UI = AliasMap.Slider, Text = "      Yellow-G (0-255)", MinValue = 0, MaxValue = 255,
-              GetFunc = function() return _G.LexusConfig.ChamsYellowRGB.G or 255 end,
-              SetFunc = function(c, v) _G.LexusConfig.ChamsYellowRGB.G = v; return true end },
-            { Key = "ModMenu_YellowB", UI = AliasMap.Slider, Text = "      Yellow-B (0-255)", MinValue = 0, MaxValue = 255,
-              GetFunc = function() return _G.LexusConfig.ChamsYellowRGB.B or 0 end,
-              SetFunc = function(c, v) _G.LexusConfig.ChamsYellowRGB.B = v; return true end },
-        }
-
-        -- CATEGORY 4: WEAPON MODS
-        local WeaponStack = {
-            { Key = "ModMenu_Weapon_Ex", UI = AliasMap.TitleSwitcher, Text = "WEAPON MODS", ExpandIndex = 0,
-              GetFunc = function() return _G.LexusConfig.EnableWeaponMod end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableWeaponMod = v; return true end },
-            -- AKM
-            { Key = "ModMenu_W101001_Title", UI = AliasMap.Title, Text = "AKM", ExpandHandle = "ModMenu_Weapon_Ex" },
-            { Key = "ModMenu_W101001_F", UI = AliasMap.Switcher, Text = "   FIRESPEED", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101001].FireSpeed end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101001].FireSpeed = v; return true end },
-            { Key = "ModMenu_W101001_I", UI = AliasMap.Switcher, Text = "   INSTAN HIT", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101001].InstanHit end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101001].InstanHit = v; return true end },
-            { Key = "ModMenu_W101001_S", UI = AliasMap.Switcher, Text = "   FAST SWITCH", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101001].FastSwitch end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101001].FastSwitch = v; return true end },
-            { Key = "ModMenu_W101001_O", UI = AliasMap.Switcher, Text = "   FAST SCOPE", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101001].FastScope end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101001].FastScope = v; return true end },
-            -- M416
-            { Key = "ModMenu_W101004_Title", UI = AliasMap.Title, Text = "M416", ExpandHandle = "ModMenu_Weapon_Ex" },
-            { Key = "ModMenu_W101004_F", UI = AliasMap.Switcher, Text = "   FIRESPEED", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101004].FireSpeed end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101004].FireSpeed = v; return true end },
-            { Key = "ModMenu_W101004_I", UI = AliasMap.Switcher, Text = "   INSTAN HIT", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101004].InstanHit end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101004].InstanHit = v; return true end },
-            { Key = "ModMenu_W101004_S", UI = AliasMap.Switcher, Text = "   FAST SWITCH", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101004].FastSwitch end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101004].FastSwitch = v; return true end },
-            { Key = "ModMenu_W101004_O", UI = AliasMap.Switcher, Text = "   FAST SCOPE", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101004].FastScope end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101004].FastScope = v; return true end },
-            -- SCAR-L
-            { Key = "ModMenu_W101003_Title", UI = AliasMap.Title, Text = "SCAR-L", ExpandHandle = "ModMenu_Weapon_Ex" },
-            { Key = "ModMenu_W101003_F", UI = AliasMap.Switcher, Text = "   FIRESPEED", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101003].FireSpeed end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101003].FireSpeed = v; return true end },
-            { Key = "ModMenu_W101003_I", UI = AliasMap.Switcher, Text = "   INSTAN HIT", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101003].InstanHit end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101003].InstanHit = v; return true end },
-            { Key = "ModMenu_W101003_S", UI = AliasMap.Switcher, Text = "   FAST SWITCH", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101003].FastSwitch end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101003].FastSwitch = v; return true end },
-            { Key = "ModMenu_W101003_O", UI = AliasMap.Switcher, Text = "   FAST SCOPE", ExpandHandle = "ModMenu_Weapon_Ex", GetFunc = function() return _G.LexusConfig.WeaponMod[101003].FastScope end, SetFunc = function(c, v) _G.LexusConfig.WeaponMod[101003].FastScope = v; return true end },
-        }
-
-        -- CATEGORY 5: SKINS
-        local SkinStack = {
-            { Key = "ModMenu_Skin_Ex", UI = AliasMap.TitleSwitcher, Text = "SKIN CHANGER", ExpandIndex = 0,
-              GetFunc = function() return _G.LexusConfig.EnableSkinChanger end,
-              SetFunc = function(c, v) _G.LexusConfig.EnableSkinChanger = v; return true end },
-            { Key = "ModMenu_Suit_Title", UI = AliasMap.Title, Text = "OUTFIT SKINS", ExpandHandle = "ModMenu_Skin_Ex" },
-            { Key = "ModMenu_Suit", UI = AliasMap.Input, Text = "   Suit ID (Outfit)", ExpandHandle = "ModMenu_Skin_Ex", DefaultText = "Enter Suit ID",
-              GetFunc = function() return tostring(_G.OutfitMap.Suit or "") end,
-              SetFunc = function(c, v) local num = tonumber(v); if num then _G.OutfitMap.Suit = num end; return true end },
-            { Key = "ModMenu_Weapon_Title", UI = AliasMap.Title, Text = "WEAPON SKINS", ExpandHandle = "ModMenu_Skin_Ex" },
-            { Key = "ModMenu_M416_Skin", UI = AliasMap.Input, Text = "   M416 Skin ID", ExpandHandle = "ModMenu_Skin_Ex", DefaultText = "Enter Skin ID",
-              GetFunc = function() return tostring(_G.WeaponSkinMap[101004] or "") end,
-              SetFunc = function(c, v) local num = tonumber(v); if num then _G.WeaponSkinMap[101004] = num end; return true end },
-            { Key = "ModMenu_AKM_Skin", UI = AliasMap.Input, Text = "   AKM Skin ID", ExpandHandle = "ModMenu_Skin_Ex", DefaultText = "Enter Skin ID",
-              GetFunc = function() return tostring(_G.WeaponSkinMap[101001] or "") end,
-              SetFunc = function(c, v) local num = tonumber(v); if num then _G.WeaponSkinMap[101001] = num end; return true end },
-        }
-
-        SettingPageDefine.ModMenu = {
-            Key = "ModMenu",
-            loc = "KNOX MOD MENU V8",
-            UIKey = "Setting_Page_Privacy",
-            Category = {
-                { Key = "Cat_Visual", loc = "VISUAL MODS", Stack = VisualStack },
-                { Key = "Cat_Combat", loc = "COMBAT MODS", Stack = CombatStack },
-                { Key = "Cat_ESP", loc = "ESP & WALLHACK", Stack = ESPStack },
-                { Key = "Cat_Weapon", loc = "WEAPON MODS", Stack = WeaponStack },
-                { Key = "Cat_Skin", loc = "SKINS", Stack = SkinStack }
-            }
-        }
-
-        table.insert(SettingCatalog, SettingPageDefine.ModMenu)
-    end
-
-    local UIManager = _G.UIManager
-    if UIManager and not UIManager._IsModMenuHooked then
-        local old_ShowUI = UIManager.ShowUI
-        UIManager.ShowUI = function(config, ...)
-            local args = {...}
-            local n = select('#', ...)
-            if config and config.keyName and (string.find(string.lower(config.keyName), "setting_main") or string.find(string.lower(config.keyName), "setting")) then
-                local catalog = args[1]
-                if type(catalog) == "table" then
-                    local hasModMenu = false
-                    for _, page in ipairs(catalog) do if type(page) == "table" and page.Key == "ModMenu" then hasModMenu = true; break end end
-                    if not hasModMenu then table.insert(catalog, SettingPageDefine.ModMenu) end
-                end
-            end
-            local table_unpack = table.unpack or unpack
-            return old_ShowUI(config, table_unpack(args, 1, n))
-        end
-        UIManager._IsModMenuHooked = true
-    end
-end
-
--- ==================== TICK FUNCTIONS ====================
-local function OnTick()
-    local player = GameplayData.GetPlayerCharacter()
-    if not slua.isValid(player) then return end
-    
-    -- IPAD View / FOV
-    if _G.LexusConfig.EnableFOV then
-        _G.SetFOV(_G.LexusConfig.FOVValue)
-    end
-    
-    -- Weapon Mods
-    if _G.LexusConfig.EnableWeaponMod then
-        _G.otherWeapon()
-    end
-    
-    -- Aimbot
-    if _G.LexusConfig.EnableAiming then
-        _G.ApplyAimingConfig()
-    end
-    
-    -- No Recoil
-    if _G.LexusConfig.EnableNoRecoil then
-        _G.ApplyNoRecoil()
-    end
-    
-    -- Magic Bullet
-    if _G.LexusConfig.EnableMagic then
-        _G.Magic()
-    end
-    
-    -- Auto Aim
-    if _G.LexusConfig.EnableAutoAim then
-        _G.ApplyAutoAim()
-    end
-    
-    -- Skins
-    if _G.LexusConfig.EnableSkinChanger then
-        _G.ApplyWeaponSkins(player)
-        _G.ApplyOutfitSkins(player)
-    end
-    
-    -- Wallhack (runs every tick for continuous effect)
-    if _G.LexusConfig.EnableWallhack then
-        _G.ApplyWallhack()
-    end
-    
-    -- No Grass / Black Sky
-    _G.DisableGrass()
-    _G.BlackSky()
-    
-    -- 165 FPS
-    if _G.LexusConfig.Enable165FPS then
-        _G.Enable165FPS()
-    end
-end
-
-local function StartESPTimer()
-    local pc = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
-    if slua.isValid(pc) then
-        if _G._ESPTimerHandle then pcall(function() pc:RemoveGameTimer(_G._ESPTimerHandle) end) end
-        _G._ESPTimerHandle = pc:AddGameTimer(0.15, true, function() pcall(ESPTick) end)
-    end
-end
-
-local function StartMainTimer()
-    local pc = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
-    if slua.isValid(pc) then
-        if _G._MainTimerHandle then pcall(function() pc:RemoveGameTimer(_G._MainTimerHandle) end) end
-        _G._MainTimerHandle = pc:AddGameTimer(0.1, true, function() pcall(OnTick) end)
-        StartESPTimer()
-    end
-end
-
--- ==================== INITIALIZATION ====================
-
-function M.OnBeginPlay(self)
-    _G.InitModMenuTab()
-    _G.TryShowLegalCredit()
-    _G.TryBypassMD5()
-    _G.BypassCacheMD5()
-    _G.BypassSecurityUtils()
-    _G.BypassHiggsComponent()
-    StartMainTimer()
-end
+return combine_class.DeclareFeature(BRCharacterClass, {
+    { SkyTransition = "GameLua.Mod.BaseMod.Gameplay.Feature.SkyControl.PlayerCharacterSkyTransitionFeature" },
+    { CarryDeadBoxFeature = "GameLua.Mod.Library.GamePlay.Feature.CarryDeadBoxFeature" },
+    { SpecialSuitFeature = "GameLua.Mod.Library.GamePlay.Feature.SpecialSuitFeature" },
+    { TeleportPawnFeature = "GameLua.Mod.BaseMod.Gameplay.Feature.TeleportPawnFeature" },
+    { LifterControl = "GameLua.Mod.BaseMod.Gameplay.Feature.Player.CharacterLifterControlFeature" },
+    { FinalKillEffect = "GameLua.Mod.BaseMod.Gameplay.Feature.Player.PlayerCharacterFinalKillEffectFeature" },
+    { CampFeature = "GameLua.Mod.BaseMod.GamePlay.Feature.Camp.PlayerCharacterCampFeature" },
+    { BuildSkateFeature = "GameLua.Mod.BaseMod.GamePlay.Feature.PlayerCharacterBuildVehicleFeature" },
+    { CommonBornlandTransformFeature = "GameLua.Mod.BaseMod.GamePlay.Feature.HeroPropFeature.CommonBornlandTransformFeature" }
+}, "BRPlayerCharacterBase")
