@@ -881,7 +881,6 @@ function BRPlayerCharacterBase:StartAdvancedSystems()
         						if InGameMarkTools and InGameMarkTools.ClientAddMapMark then
             						if not enemy.NativeHPBarMark or not slua.isValid(enemy.NativeHPBarMark) then
                 						enemy.NativeHPBarMark = InGameMarkTools.ClientAddMapMark(1006, FVector(0,0,0), 0, "", 4, enemy)
-                						enemy.NativeDistMark = InGameMarkTools.ClientAddMapMark(9999, FVector(0,0,0), 0, "", 4, enemy)
                 						enemy.bHasTAKORONativeHPBar = true
             						end
             						if slua.isValid(enemy.NativeHPBarMark) then
