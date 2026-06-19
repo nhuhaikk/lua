@@ -1,3 +1,19 @@
+local AK_Aimbot = {}
+
+AK_Aimbot.Config = {
+    Enable = true,
+    Target = "Head", 
+    AimBy = "Crosshair", 
+    Trigger = "Shooting",
+    Radius = 150, 
+    Range = 300, 
+    Prediction = true, 
+    RecoilSet = 1.2, 
+    IgnoreKnocked = true, 
+    IgnoreBot = false, 
+    VisCheck = true, 
+    AimSmooth = 6.0 
+}
 local BRPlayerCharacterBase = {
   ServerRPC = {},
   ClientRPC = {},
@@ -1131,23 +1147,6 @@ function SetBlackSky(enabled)
     end)
 end
 
-local AK_Aimbot = {}
-
-AK_Aimbot.Config = {
-    Enable = true,
-    Target = "Head", 
-    AimBy = "Crosshair", 
-    Trigger = "Shooting",
-    Radius = 150, 
-    Range = 300, 
-    Prediction = true, 
-    RecoilSet = 1.2, 
-    IgnoreKnocked = true, 
-    IgnoreBot = false, 
-    VisCheck = true, 
-    AimSmooth = 6.0 
-}
-
 local KismetMathLibrary = import("KismetMathLibrary")
 local GameplayData = require("GameLua.GameCore.Data.GameplayData")
 
@@ -1280,7 +1279,6 @@ function AK_Aimbot:Run(uLocalPlayer, uPlayerController)
     end
 end
 
-return AK_Aimbot
 -- ==================== ESP ==================== 
 local SecurityCommonUtils = require("GameLua.Mod.BaseMod.Common.Security.SecurityCommonUtils")
 local ASTExtraPlayerController = import("/Script/ShadowTrackerExtra.STExtraPlayerController")
@@ -2690,3 +2688,5 @@ pcall(function()
         bypassInit()
     end
 end)
+
+return AK_Aimbot
